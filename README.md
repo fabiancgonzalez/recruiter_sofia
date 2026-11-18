@@ -12,6 +12,26 @@ construye dinamico por proceso con build_graph(cfg).
     pip install -r requirements.txt
     uvicorn api:app --reload --port 8000
 
+## Despliegue en Railway
+Usá la raíz de este repositorio como Root Directory del servicio y Railpack
+como builder. `railpack.json` define el arranque de FastAPI con:
+
+    python -m uvicorn api:app --host 0.0.0.0 --port $PORT
+
+Railway proporciona `PORT`. No uses `--reload` en producción ni varios workers:
+el estado de los procesos activos se mantiene en memoria.
+Si configuraste un Start Command manual en Railway, borralo para usar el del
+repositorio o reemplazalo por el comando anterior.
+
+En Variables, configurá `PROVIDER`, `MODEL` y la clave del proveedor elegido
+(ver la sección siguiente). Subí estos cambios al repositorio conectado y
+volvé a desplegar. Generá un dominio público y abrí `/panel`.
+
+El disco del contenedor es efímero. Para conservar los checkpoints entre
+despliegues, montá un volumen, por ejemplo en `/data`, y configurá
+`CHECKPOINT_DB=/data/checkpoints_reclutador.sqlite`. Esto conserva los
+checkpoints, pero no recupera los procesos activos en memoria tras un reinicio.
+
 ## Proveedor del modelo
 Configurá uno de estos proveedores en `.env` y reiniciá el servidor al cambiarlo:
 
