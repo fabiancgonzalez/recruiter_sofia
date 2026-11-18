@@ -386,6 +386,13 @@
   tbody tr:last-child td, tbody tr:last-child th { border-bottom: 0; }
   tbody tr:hover { background: var(--hover-row); }
   .tabla-candidatos label { margin: 0; color: inherit; text-transform: none; letter-spacing: 0; font-size: .9rem; }
+  .tabla-candidatos input[type="checkbox"] { accent-color: var(--cian); }
+  .tabla-candidatos th[scope="row"], .nombre-final { overflow-wrap: anywhere; }
+  .btn-descartar { padding: .5rem; min-width: 2.5rem; min-height: 2.5rem; color: var(--rosa); }
+  .btn-descartar svg { display: block; margin-inline: auto; }
+  .seleccion-final { margin-top: 1rem; }
+  .seleccion-final ul { padding-inline-start: 1.4rem; margin-top: .35rem; }
+  .nombre-final { font-size: 1.2rem; font-weight: 700; }
 
   @media (max-width: 600px) {
     body { padding: 1.5rem .8rem 3rem; }
@@ -558,17 +565,24 @@ Rango: $1.800.000-$2.400.000 ARS brutos. Inglés intermedio deseable.</textarea>
     </div>
     <div class="card-body open" id="body-candidatos">
       <div class="inner">
-        <p class="estado" style="margin-top:0">Revisá el análisis y seleccioná un candidato. La decisión es tuya.</p>
+        <p class="estado" style="margin-top:0">Seleccioná todos los candidatos que quieras. La papelera solo los quita de esta lista: no borra el CV ni cambia el análisis.</p>
+        <template id="icono-papelera">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 6h18M9 6V3h6v3m4 0-1 15H6L5 6m5 4v7m4-7v7"/>
+          </svg>
+        </template>
         <div class="tabla-candidatos" role="region" aria-label="Candidatos para revisar" tabindex="0">
           <table>
             <caption>Candidatos cargados</caption>
-            <thead><tr><th scope="col">Candidato</th><th scope="col">Selección</th></tr></thead>
+            <thead><tr><th scope="col">Candidato</th><th scope="col">Selección</th><th scope="col">Descartar</th></tr></thead>
             <tbody id="filas-candidatos"></tbody>
           </table>
         </div>
+        <p class="estado" id="estado-candidatos" role="status"></p>
         <label for="resumen-compartir">Notas para compartir (opcional)</label>
         <textarea id="resumen-compartir" rows="3"></textarea>
-        <p class="estado">El correo y el calendario incluirán el nombre, el puesto y estas notas; no incluirán los CVs ni el análisis completo. Revisá los datos antes de compartirlos.</p>
+        <p class="estado">El correo y el calendario incluirán los nombres seleccionados, el puesto y estas notas; no incluirán los CVs ni el análisis completo. Revisá los datos antes de compartirlos.</p>
         <div class="row">
           <button class="btn-mini" onclick="borradorCorreo()">Abrir borrador de correo</button>
           <button class="btn-mini" onclick="abrirCalendario()">Agendar en Google Calendar</button>
@@ -583,8 +597,17 @@ Rango: $1.800.000-$2.400.000 ARS brutos. Inglés intermedio deseable.</textarea>
     <div class="card-body open">
       <div class="inner" style="padding-top:1.3rem">
         <span class="badge badge-fin">proceso finalizado</span>
+        <section class="seleccion-final" aria-labelledby="titulo-seleccion-final">
+          <h2 id="titulo-seleccion-final">Candidatos seleccionados</h2>
+          <p class="estado" id="sin-seleccion-final">Todavía no seleccionaste candidatos.</p>
+          <ul id="seleccion-final"></ul>
+        </section>
         <pre id="resultado" style="margin-top:.75rem"></pre>
-        <div class="row"><button class="btn-primario" onclick="location.reload()">Nuevo proceso</button></div>
+        <div class="row">
+          <button type="button" class="btn-mini" id="btn-word" onclick="descargarResumen()">Descargar resumen en Word</button>
+          <button class="btn-primario" onclick="location.reload()">Nuevo proceso</button>
+        </div>
+        <div class="estado" id="msg-word" role="alert"></div>
       </div>
     </div>
   </div>
@@ -631,8 +654,9 @@ document.querySelectorAll('[role="button"]').forEach(el => {
   });
 });
 
-/* ---------- Lógica original intacta ---------- */
+/* ---------- Proceso ---------- */
 let pid = null;
+let puestoProceso = "";
 const TIEMPO_SOLICITUD_MS = 15_000;
 const TIEMPO_ETAPA_MS = 180_000;
 
@@ -701,6 +725,7 @@ async function iniciar() {
     return;
   }
   pid = data.pid;
+  puestoProceso = body.puesto;
   mostrarCandidatos(cvs);
   ["card-config", "card-puesto", "card-cvs", "card-inicio"].forEach(id => document.getElementById(id).classList.add("hidden"));
   document.getElementById("card-progreso").classList.remove("hidden");
@@ -716,31 +741,80 @@ function mostrarCandidatos(cvs) {
     nombre.scope = "row"; nombre.textContent = cv.nombre;
     const celda = document.createElement("td");
     const etiqueta = document.createElement("label");
+    const textoEtiqueta = document.createElement("span");
     const opcion = document.createElement("input");
-    opcion.type = "radio"; opcion.name = "candidato"; opcion.value = indice;
-    etiqueta.append(opcion, document.createTextNode(" Seleccionar " + cv.nombre));
+    opcion.type = "checkbox"; opcion.name = "candidato"; opcion.value = indice;
+    opcion.id = `candidato-${indice}`;
+    etiqueta.htmlFor = opcion.id;
+    textoEtiqueta.textContent = " Seleccionar";
+    textoEtiqueta.id = `${opcion.id}-accion`;
+    nombre.id = `${opcion.id}-nombre`;
+    opcion.setAttribute("aria-labelledby", `${textoEtiqueta.id} ${nombre.id}`);
+    opcion.addEventListener("change", actualizarSeleccionFinal);
+    etiqueta.append(opcion, textoEtiqueta);
     celda.appendChild(etiqueta);
-    fila.append(nombre, celda);
+
+    const acciones = document.createElement("td");
+    const descartar = document.createElement("button");
+    descartar.type = "button";
+    descartar.className = "btn-mini btn-descartar";
+    descartar.setAttribute("aria-label", "Descartar " + cv.nombre);
+    descartar.append(document.getElementById("icono-papelera").content.cloneNode(true));
+    descartar.addEventListener("click", () => {
+      const vecina = fila.nextElementSibling || fila.previousElementSibling;
+      fila.remove();
+      actualizarSeleccionFinal();
+      document.getElementById("estado-candidatos").textContent = filas.rows.length
+        ? `${cv.nombre}: fuera de la lista de revisión.`
+        : "Ya no quedan candidatos en la lista de revisión.";
+      (vecina?.querySelector(".btn-descartar") || document.getElementById("resumen-compartir")).focus();
+    });
+    acciones.append(descartar);
+    fila.append(nombre, celda, acciones);
     filas.appendChild(fila);
   });
   document.getElementById("card-candidatos").classList.add("hidden");
   document.getElementById("resumen-compartir").value = "";
+  document.getElementById("estado-candidatos").textContent = "";
+  document.getElementById("msg-word").textContent = "";
+  actualizarSeleccionFinal();
+}
+
+function candidatosSeleccionados() {
+  return [...document.querySelectorAll('#filas-candidatos input:checked')].map(opcion => ({
+    indice: Number(opcion.value),
+    nombre: opcion.closest("tr").querySelector("th").textContent,
+  }));
+}
+
+function actualizarSeleccionFinal() {
+  const seleccion = candidatosSeleccionados();
   document.getElementById("msg-candidato").textContent = "";
+  document.getElementById("sin-seleccion-final").hidden = seleccion.length > 0;
+  document.getElementById("seleccion-final").replaceChildren(...seleccion.map(({ nombre }) => {
+    const item = document.createElement("li");
+    const destacado = document.createElement("strong");
+    destacado.className = "nombre-final";
+    destacado.textContent = nombre;
+    item.append(destacado);
+    return item;
+  }));
 }
 
 function datosParaCompartir() {
-  const seleccion = document.querySelector('input[name="candidato"]:checked');
-  if (!seleccion) { document.getElementById("msg-candidato").textContent = "Seleccioná un candidato primero."; return null; }
+  const seleccion = candidatosSeleccionados();
+  if (!seleccion.length) { document.getElementById("msg-candidato").textContent = "Seleccioná al menos un candidato primero."; return null; }
   document.getElementById("msg-candidato").textContent = "";
-  const nombre = seleccion.closest("tr").querySelector("th").textContent;
-  const puesto = document.getElementById("puesto").value.trim();
+  const etiqueta = seleccion.length === 1 ? "Candidato" : "Candidatos";
+  const nombres = seleccion.map(({ nombre }) => nombre).join(", ");
   const notas = document.getElementById("resumen-compartir").value.trim();
-  return { nombre, puesto, detalle: `Candidato: ${nombre}\nPuesto: ${puesto}` + (notas ? `\n\nNotas:\n${notas}` : "") };
+  return { etiqueta, nombres,
+    detalle: `${etiqueta}: ${nombres}\nPuesto: ${puestoProceso}` + (notas ? `\n\nNotas:\n${notas}` : "") };
 }
 
 function borradorCorreo() {
   const datos = datosParaCompartir(); if (!datos) return;
-  const asunto = `Candidato para ${datos.puesto}: ${datos.nombre}`;
+  const asunto = `${datos.etiqueta} para ${puestoProceso}: ${datos.nombres}`;
   window.location.href = `mailto:?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(datos.detalle)}`;
 }
 
@@ -748,9 +822,47 @@ function abrirCalendario() {
   const datos = datosParaCompartir(); if (!datos) return;
   const url = new URL("https://calendar.google.com/calendar/render");
   url.searchParams.set("action", "TEMPLATE");
-  url.searchParams.set("text", `Entrevista: ${datos.nombre} - ${datos.puesto}`);
+  url.searchParams.set("text", `Entrevista: ${datos.nombres} - ${puestoProceso}`);
   url.searchParams.set("details", datos.detalle);
   window.open(url.toString(), "_blank", "noopener,noreferrer");
+}
+
+async function descargarResumen() {
+  const boton = document.getElementById("btn-word");
+  const mensaje = document.getElementById("msg-word");
+  boton.disabled = true;
+  mensaje.textContent = "";
+  try {
+    const r = await fetch(`/procesos/${pid}/resumen`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        seleccion: candidatosSeleccionados().map(({ indice }) => indice),
+        notas: document.getElementById("resumen-compartir").value.trim(),
+      }),
+      signal: AbortSignal.timeout(TIEMPO_SOLICITUD_MS),
+    });
+    if (!r.ok) throw new Error("No se pudo descargar el resumen. Volvé a intentar.");
+    const url = URL.createObjectURL(await r.blob());
+    const hoy = new Date();
+    const fecha = [hoy.getFullYear(), hoy.getMonth() + 1, hoy.getDate()]
+      .map(numero => String(numero).padStart(2, "0")).join("-");
+    const puesto = puestoProceso.replace(/[<>:"/\\|?*\x00-\x1f]/g, "-")
+      .slice(0, 100).trim().replace(/[. ]+$/, "") || "Posición a cubrir";
+    const enlace = document.createElement("a");
+    enlace.href = url;
+    enlace.download = `${puesto} - ${fecha}.docx`;
+    document.body.append(enlace);
+    enlace.click();
+    enlace.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  } catch (error) {
+    mensaje.textContent = error.name === "TimeoutError"
+      ? "El servidor tardó demasiado en preparar el resumen. Volvé a intentar."
+      : "No se pudo descargar el resumen. Volvé a intentar.";
+  } finally {
+    boton.disabled = false;
+  }
 }
 
 async function pollear(limite = Date.now() + TIEMPO_ETAPA_MS) {
@@ -778,6 +890,7 @@ async function pollear(limite = Date.now() + TIEMPO_ETAPA_MS) {
     document.getElementById("badge").textContent = "finalizado";
     document.getElementById("card-progreso").classList.add("hidden");
     document.getElementById("resultado").textContent = s.resultado || "";
+    document.getElementById("card-candidatos").classList.remove("hidden");
     document.getElementById("card-final").classList.remove("hidden");
   } else if (Date.now() >= limite) {
     mostrarError(`El proceso ${pid} no terminó esta etapa a tiempo. Revisá los registros del servidor.`);

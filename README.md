@@ -11,10 +11,28 @@ Al abrir `/panel`, los campos se precargan con los valores por defecto de
 `NuevoProceso` en `api.py`. Los cambios del formulario se aplican solo al
 proceso que se inicia con ellos.
 
-## Instalacion
-    python -m venv .venv && source .venv/bin/activate
-    pip install -r requirements.txt
-    uvicorn api:app --reload --port 8000
+## Instalación
+
+Desde la raíz del proyecto, en **Windows (PowerShell)**:
+
+```powershell
+py -m venv .venv
+& .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+& .\.venv\Scripts\python.exe -m uvicorn api:app --reload --port 8000
+```
+
+Si ya tenés el entorno y las dependencias instaladas, ejecutá solo la última
+línea. `-m uvicorn` evita usar `uvicorn.exe`, que puede quedar apuntando a una
+ruta anterior si se movió el entorno virtual.
+
+En **Linux o macOS**:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python -m uvicorn api:app --reload --port 8000
+```
 
 ## Despliegue en Railway
 Usá la raíz de este repositorio como Root Directory del servicio y Railpack
@@ -93,16 +111,23 @@ del modelo en tu cuenta. Las variables del entorno tienen prioridad sobre `.env`
     2. completar puesto y caracteristicas
     3. cargar CVs: pegar texto, subir .txt/.md, o subir PDF (extraccion
        con pypdf via POST /cvs/pdf)
-    4. iniciar -> revisar el análisis y seleccionar un candidato en la grilla
+    4. iniciar -> revisar el análisis y seleccionar uno o más candidatos en la grilla,
+       sin límite. La papelera quita de la grilla sin borrar el CV ni alterar el análisis
     5. opcionalmente abrir un borrador de correo o un evento editable de
        Google Calendar; completar destinatario o fecha y confirmar manualmente
-    6. aprobar shortlist o pedir ajustes -> ver preguntas
+    6. aprobar shortlist o pedir ajustes -> ver preguntas y candidatos seleccionados.
+       Descargar resumen en Word guarda la selección, las notas y el resultado generado
+       como «Nombre del puesto - AAAA-MM-DD.docx»
 
 ## API
     POST /procesos            crear proceso (JSON, ver api.py)
     POST /cvs/pdf             multipart files=[pdf...] -> [{nombre, texto}]
     GET  /procesos/{pid}      estado / shortlist / resultado
     POST /procesos/{pid}/respuesta   {"respuesta": "si" | "ajustes..."}
+    POST /procesos/{pid}/resumen     {"seleccion": [0, ...], "notas": "..."} -> .docx
+
+Para descargar el resumen por API, el proceso debe haber finalizado. `seleccion`
+contiene índices de los CVs cargados (el primero es 0); también puede estar vacía.
 
 ## Notas
 - PDFs escaneados (sin capa de texto) dan error 400 con mensaje claro.
@@ -112,7 +137,7 @@ del modelo en tu cuenta. Las variables del entorno tienen prioridad sobre `.env`
   Los CVs y la configuración permanecen cargados al volver a editar.
 - Groq también puede informar errores de autenticación, permisos o límites de
   solicitudes; revisá la cuenta y el modelo configurado antes de reintentar.
-- La selección en la grilla es manual. Los borradores incluyen el nombre,
+- La selección en la grilla es manual. Los borradores incluyen los nombres,
   el puesto y las notas que ingreses, pero no los CVs ni el análisis completo.
 
 

@@ -8,18 +8,20 @@ POST /procesos              {"puesto", "caracteristicas", "cvs": [{nombre, texto
 POST /cvs/pdf               multipart: files=[.pdf...] -> [{"nombre", "texto"}]
 GET  /procesos/{pid}        estado + shortlist/preguntas cuando esta en pausa
 POST /procesos/{pid}/respuesta  {"respuesta": "si" | "ajustes..."}
+POST /procesos/{pid}/resumen    {"seleccion": [0, ...], "notas": "..."} -> .docx
 """
 import os, io, asyncio, uuid, logging, re
 from contextlib import asynccontextmanager
 from html import escape
 from pathlib import Path
 from time import monotonic
+from zipfile import ZIP_DEFLATED, ZipFile
 from dotenv import load_dotenv
 load_dotenv()
 
 from fastapi import FastAPI, HTTPException, UploadFile, File
-from fastapi.responses import HTMLResponse, RedirectResponse
-from pydantic import BaseModel
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from pydantic import BaseModel, StrictInt
 from openai import APITimeoutError, AuthenticationError, NotFoundError, PermissionDeniedError, RateLimitError
 
 from langchain_core.messages import AIMessage
@@ -184,6 +186,43 @@ class NuevoProceso(BaseModel):
 class Respuesta(BaseModel):
     respuesta: str
 
+class ResumenWord(BaseModel):
+    seleccion: list[StrictInt]
+    notas: str = ""
+
+DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+
+def _resumen_docx(puesto: str, nombres: list[str], notas: str, resultado: str) -> bytes:
+    def parrafos(texto: str, puntos: int = 0) -> str:
+        texto = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff\ufffe\uffff]", "", texto)
+        formato = f'<w:rPr><w:b/><w:sz w:val="{puntos * 2}"/></w:rPr>' if puntos else ""
+        return "".join(f'<w:p><w:r>{formato}<w:t xml:space="preserve">{escape(linea)}</w:t></w:r></w:p>'
+                       for linea in texto.split("\n"))
+
+    contenido = parrafos(f"Resumen de selección: {puesto}", 20)
+    contenido += parrafos("Candidatos seleccionados", 14)
+    contenido += "".join(parrafos(nombre, 16) for nombre in nombres) if nombres else parrafos("Sin selección.")
+    if notas:
+        contenido += parrafos("Notas", 14) + parrafos(notas)
+    contenido += parrafos("Resultado generado", 14) + parrafos(resultado)
+    # Un .docx mínimo consta del manifiesto, la relación raíz y el documento.
+    archivo = io.BytesIO()
+    with ZipFile(archivo, "w", ZIP_DEFLATED) as docx:
+        docx.writestr("[Content_Types].xml",
+                      '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+                      '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+                      '<Override PartName="/word/document.xml" '
+                      f'ContentType="{DOCX_MIME}.main+xml"/></Types>')
+        docx.writestr("_rels/.rels",
+                      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" '
+                      'Target="word/document.xml"/></Relationships>')
+        docx.writestr("word/document.xml",
+                      '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+                      f'<w:body>{contenido}</w:body></w:document>')
+    return archivo.getvalue()
+
 # ---------------- PDF -> texto ----------------
 @app.post("/cvs/pdf")
 async def pdf_a_texto(files: list[UploadFile] = File(...)):
@@ -207,6 +246,13 @@ def _snapshot(graph, config) -> dict:
     mensajes = estado.values.get("messages", [])
     pendiente = bool(estado.next and "aprobacion" in str(estado.next))
     resultado = mensajes[-1].content if mensajes and isinstance(mensajes[-1], AIMessage) else None
+    if isinstance(resultado, list):
+        resultado = "\n".join(
+            bloque if isinstance(bloque, str) else bloque.get("text", "")
+            for bloque in resultado
+            if isinstance(bloque, str) or
+            (bloque.get("type") == "text" and isinstance(bloque.get("text"), str))
+        )
     terminado_sin_resultado = not estado.next and not resultado
     return {
         "estado": "en_pausa" if estado.next else "error" if terminado_sin_resultado else "finalizado",
@@ -248,7 +294,8 @@ async def crear_proceso(body: NuevoProceso):
     graph = build_graph(cfg)
     config = {"configurable": {"thread_id": str(uuid.uuid4())}}
     pid = config["configurable"]["thread_id"][:8]
-    PROCESOS[pid] = {"graph": graph, "config": config}
+    PROCESOS[pid] = {"graph": graph, "config": config, "puesto": body.puesto,
+                    "nombres": [cv.nombre for cv in body.cvs]}
     data = {"puesto": body.puesto, "caracteristicas": body.caracteristicas,
             "cvs": [c.model_dump() for c in body.cvs]}
     _run_background(graph, {"messages": [mensaje_inicial(data)]}, config,
@@ -268,6 +315,20 @@ def estado_proceso(pid: str):
                 "total_mensajes": 0, "pendiente_aprobacion": False}
     snap = _snapshot(p["graph"], p["config"])
     return {"pid": pid, **snap}
+
+@app.post("/procesos/{pid}/resumen", response_class=Response,
+          responses={200: {"content": {DOCX_MIME: {}}}})
+def descargar_resumen(pid: str, body: ResumenWord):
+    proceso = estado_proceso(pid)
+    if proceso["estado"] != "finalizado":
+        raise HTTPException(409, "El resumen está disponible cuando finaliza el proceso.")
+    p = PROCESOS[pid]
+    nombres = p["nombres"]
+    indices = body.seleccion
+    if len(set(indices)) != len(indices) or any(not 0 <= i < len(nombres) for i in indices):
+        raise HTTPException(400, "La selección contiene candidatos repetidos o que no pertenecen al proceso.")
+    contenido = _resumen_docx(p["puesto"], [nombres[i] for i in indices], body.notas, proceso["resultado"])
+    return Response(contenido, media_type=DOCX_MIME, headers={"Cache-Control": "no-store"})
 
 @app.post("/procesos/{pid}/respuesta")
 async def responder(pid: str, body: Respuesta):

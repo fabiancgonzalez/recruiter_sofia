@@ -4,8 +4,11 @@ import os
 import threading
 import unittest
 from html import escape
+from io import BytesIO
 from types import SimpleNamespace
 from unittest.mock import patch
+from xml.etree import ElementTree
+from zipfile import ZipFile
 
 import httpx
 from fastapi.testclient import TestClient
@@ -41,6 +44,52 @@ class PanelTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('id="sup-rol" value="Rol &quot;A&quot; &amp; &quot;B&quot;"', response.text)
         self.assertIn('>Escribi &lt;b&gt;HTML&lt;/b&gt; &amp; texto.</textarea>', response.text)
+
+
+class ResumenTests(unittest.TestCase):
+    def setUp(self):
+        self.estado = SimpleNamespace(
+            values={"messages": [AIMessage(content=[{"type": "text", "text": "¿Cómo probás el código?"}])]},
+            next=(),
+        )
+        self.proceso = {
+            "graph": SimpleNamespace(get_state=lambda config: self.estado),
+            "config": {},
+            "puesto": "Diseño & Datos",
+            "nombres": ["Ana", "Bruno", "Cecilia", "Daniel", "Eva"],
+        }
+        parche = patch.dict(api.PROCESOS, {"docx-test": self.proceso})
+        parche.start()
+        self.addCleanup(parche.stop)
+        self.client = TestClient(api.app)
+        self.url = "/procesos/docx-test/resumen"
+
+    def test_descarga_word_con_mas_de_tres_seleccionados_y_resultado(self):
+        r = self.client.post(self.url, json={"seleccion": [0, 2, 3, 4], "notas": "Primera línea\n<Segunda>"})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.headers["content-type"], api.DOCX_MIME)
+        with ZipFile(BytesIO(r.content)) as docx:
+            self.assertIsNone(docx.testzip())
+            documento = ElementTree.fromstring(docx.read("word/document.xml"))
+        ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+        parrafos = {p.findtext("w:r/w:t", namespaces=ns): p for p in documento.findall(".//w:p", ns)}
+        self.assertNotIn("Bruno", parrafos)
+        for texto in ("Resumen de selección: Diseño & Datos", "Primera línea", "<Segunda>", "¿Cómo probás el código?"):
+            self.assertIn(texto, parrafos)
+        for nombre in ("Ana", "Cecilia", "Daniel", "Eva"):
+            self.assertIsNotNone(parrafos[nombre].find("w:r/w:rPr/w:b", ns))
+            tamano = parrafos[nombre].find("w:r/w:rPr/w:sz", ns)
+            self.assertGreater(int(tamano.get(f"{{{ns['w']}}}val")), 22)
+
+    def test_rechaza_indices_invalidos_o_duplicados_y_permite_seleccion_vacia(self):
+        for seleccion in ([-1], [5], [0, 0]):
+            with self.subTest(seleccion=seleccion):
+                self.assertEqual(self.client.post(self.url, json={"seleccion": seleccion}).status_code, 400)
+        self.assertEqual(self.client.post(self.url, json={"seleccion": []}).status_code, 200)
+
+    def test_no_descarga_resumen_antes_de_finalizar(self):
+        self.estado.next = ("aprobacion",)
+        self.assertEqual(self.client.post(self.url, json={"seleccion": [0]}).status_code, 409)
 
 
 class BackgroundTests(unittest.IsolatedAsyncioTestCase):
