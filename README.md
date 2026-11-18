@@ -5,7 +5,8 @@ Equipo: Supervisor Recruiter -> Reclutador (screening CVs vs puesto)
 personalizadas por candidato) -> fin.
 
 Roles y prompts de los 3 agentes editables desde el panel; el grafo se
-construye dinamico por proceso con build_graph(cfg).
+construye dinamico por proceso con build_graph(cfg). El supervisor enruta
+al inicio; al terminar el entrevistador, no se vuelve a consultar al supervisor.
 
 ## Instalacion
     python -m venv .venv && source .venv/bin/activate
@@ -26,6 +27,11 @@ repositorio o reemplazalo por el comando anterior.
 En Variables, configurá `PROVIDER`, `MODEL` y la clave del proveedor elegido
 (ver la sección siguiente). Subí estos cambios al repositorio conectado y
 volvé a desplegar. Generá un dominio público y abrí `/panel`.
+
+Si una etapa no termina, abrí **Deploy Logs** del servicio y buscá `Proceso`
+o el ID que muestra el panel. El servidor registra el inicio, la duración y
+el tipo de fallo de cada etapa, sin incluir CVs ni claves. Las solicitudes
+al modelo tienen un timeout de 60 segundos y no se reintentan automáticamente.
 
 El disco del contenedor es efímero. Para conservar los checkpoints entre
 despliegues, montá un volumen, por ejemplo en `/data`, y configurá

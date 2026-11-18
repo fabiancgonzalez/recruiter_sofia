@@ -10,8 +10,9 @@ Flujo:
     Supervisor -> Reclutador -> [PAUSA: humano aprueba shortlist]
         | no (tope MAX_AJUSTES)        | si
         v                              v
-     vuelve al Reclutador      Entrevistador -> Supervisor -> FINALIZAR
+     vuelve al Reclutador      Entrevistador -> FINALIZAR
 """
+import logging
 import os
 from typing import Literal
 from dotenv import load_dotenv
@@ -27,8 +28,11 @@ import sqlite3
 load_dotenv()
 
 PROVIDER = os.getenv("PROVIDER", "openai").strip().lower()
+MODEL_TIMEOUT_SECONDS = 60.0
+log = logging.getLogger("uvicorn.error")
 
 def build_model():
+    opciones = {"temperature": 0, "timeout": MODEL_TIMEOUT_SECONDS, "max_retries": 0}
     if PROVIDER == "groq":
         api_key = os.getenv("GROQ_API_KEY", "").strip()
         if not api_key:
@@ -37,10 +41,10 @@ def build_model():
             model=os.getenv("MODEL", "llama-3.3-70b-versatile"),
             api_key=api_key,
             base_url="https://api.groq.com/openai/v1",
-            temperature=0,
+            **opciones,
         )
     if PROVIDER == "openai":
-        return ChatOpenAI(model=os.getenv("MODEL", "gpt-5-mini"), temperature=0)
+        return ChatOpenAI(model=os.getenv("MODEL", "gpt-5-mini"), **opciones)
     if PROVIDER == "vercel_ai_gateway":
         api_key = (
             os.getenv("VERCEL_AI_GATEWAY_API_KEY")
@@ -53,10 +57,10 @@ def build_model():
                 "cuando PROVIDER=vercel_ai_gateway."
             )
         return ChatOpenAI(
-                model=os.getenv("MODEL", "reflection/beam-free"),
+            model=os.getenv("MODEL", "reflection/beam-free"),
             api_key=api_key,
             base_url="https://ai-gateway.vercel.sh/v1",
-            temperature=0,
+            **opciones,
         )
     raise ValueError(
         f"PROVIDER no admitido: {PROVIDER}. Usá 'groq', 'openai' o "
@@ -100,7 +104,7 @@ def build_graph(cfg: dict):
 
     def make_worker(agent, nombre):
         def worker(state: MessagesState) -> dict:
-            print(f"[equipo] trabaja: {nombre}")
+            log.info("[equipo] trabaja: %s", nombre)
             result = agent.invoke({"messages": mensajes_para_modelo(state["messages"])})
             return {"messages": [result["messages"][-1]]}
         return worker
@@ -132,7 +136,7 @@ def build_graph(cfg: dict):
 
     g.add_edge(START, "supervisor")
     g.add_edge("reclutador", "aprobacion")
-    g.add_edge("entrevistador", "supervisor")
+    g.add_edge("entrevistador", END)
     g.add_conditional_edges("supervisor",
                             lambda s: s["next"] if s["next"] in members else END)
 

@@ -426,7 +426,7 @@
               <label>Rol del supervisor recruiter</label>
               <input type="text" id="sup-rol" value="Supervisor Recruiter">
               <label>Prompt del supervisor recruiter</label>
-              <textarea id="sup-prompt" rows="3">Coordinás el proceso de selección. Delegá el screening en el reclutador; cuando el shortlist esté aprobado por el humano, delegá en el entrevistador. Cuando las preguntas de entrevista estén listas, FINALIZAR.</textarea>
+              <textarea id="sup-prompt" rows="3">Coordinás el inicio del proceso de selección. Delegá el screening en el reclutador.</textarea>
             </div>
           </div>
         </div>
@@ -632,7 +632,9 @@ document.querySelectorAll('[role="button"]').forEach(el => {
 });
 
 /* ---------- Lógica original intacta ---------- */
-let pid = null, timer = null;
+let pid = null;
+const TIEMPO_SOLICITUD_MS = 15_000;
+const TIEMPO_ETAPA_MS = 180_000;
 
 function agregarCV(nombre = "", texto = "") {
   const div = document.createElement("div");
@@ -688,15 +690,20 @@ async function iniciar() {
   };
   let data;
   try {
-    const r = await fetch("/procesos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const r = await fetch("/procesos", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+      signal: AbortSignal.timeout(TIEMPO_SOLICITUD_MS) });
     data = await r.json();
     if (!r.ok) throw new Error(data.detail || "No se pudo iniciar el proceso.");
-  } catch (error) { document.getElementById("msg-inicio").textContent = error.message; return; }
+  } catch (error) {
+    document.getElementById("msg-inicio").textContent = error.name === "TimeoutError"
+      ? "El servidor no confirmó el inicio a tiempo." : error.message;
+    return;
+  }
   pid = data.pid;
   mostrarCandidatos(cvs);
   ["card-config", "card-puesto", "card-cvs", "card-inicio"].forEach(id => document.getElementById(id).classList.add("hidden"));
   document.getElementById("card-progreso").classList.remove("hidden");
-  timer = setInterval(pollear, 3000);
   pollear();
 }
 
@@ -746,32 +753,40 @@ function abrirCalendario() {
   window.open(url.toString(), "_blank", "noopener,noreferrer");
 }
 
-async function pollear() {
+async function pollear(limite = Date.now() + TIEMPO_ETAPA_MS) {
   let s;
   try {
-    const r = await fetch("/procesos/" + pid);
+    const r = await fetch("/procesos/" + pid, {
+      signal: AbortSignal.timeout(TIEMPO_SOLICITUD_MS) });
+    if (r.status === 404) throw new Error("El servidor ya no encuentra el proceso. Volvé a iniciarlo.");
     if (!r.ok) throw new Error("No se pudo consultar el proceso. Revisá la conexión con el servidor.");
     s = await r.json();
-  } catch (error) { mostrarError(error.message); return; }
-  document.getElementById("msg-progreso").textContent = `nodo: ${s.nodo_actual || "-"} | mensajes: ${s.total_mensajes}`;
+  } catch (error) {
+    mostrarError(error.name === "TimeoutError" ? "El servidor no respondió a la consulta de estado a tiempo." : error.message);
+    return;
+  }
+  document.getElementById("msg-progreso").textContent = s.estado === "trabajando"
+    ? `Proceso ${pid}: esperando la respuesta del equipo…`
+    : `nodo: ${s.nodo_actual?.join(", ") || "-"} | mensajes: ${s.total_mensajes}`;
   if (s.estado === "error") { mostrarError(s.error || "No se pudo completar el proceso."); }
   else if (s.pendiente_aprobacion) {
-    clearInterval(timer);
     document.getElementById("badge").textContent = "en pausa: esperando tu aprobación";
     document.getElementById("shortlist").textContent = s.shortlist || "";
     document.getElementById("card-aprobacion").classList.remove("hidden");
     document.getElementById("card-candidatos").classList.remove("hidden");
   } else if (s.estado === "finalizado") {
-    clearInterval(timer);
     document.getElementById("badge").textContent = "finalizado";
     document.getElementById("card-progreso").classList.add("hidden");
     document.getElementById("resultado").textContent = s.resultado || "";
     document.getElementById("card-final").classList.remove("hidden");
+  } else if (Date.now() >= limite) {
+    mostrarError(`El proceso ${pid} no terminó esta etapa a tiempo. Revisá los registros del servidor.`);
+  } else {
+    setTimeout(() => pollear(limite), 3000);
   }
 }
 
 function mostrarError(mensaje) {
-  clearInterval(timer);
   document.getElementById("card-aprobacion").classList.add("hidden");
   document.getElementById("card-candidatos").classList.add("hidden");
   document.getElementById("card-progreso").classList.remove("hidden");
@@ -795,14 +810,18 @@ async function responder(rapida) {
   if (!texto) return;
   document.getElementById("card-aprobacion").classList.add("hidden");
   document.getElementById("card-progreso").classList.remove("hidden");
-  document.getElementById("badge").textContent = "el entrevistador está generando preguntas...";
+  document.getElementById("badge").textContent = "procesando tu respuesta...";
   try {
     const r = await fetch("/procesos/" + pid + "/respuesta", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ respuesta: texto }) });
+      body: JSON.stringify({ respuesta: texto }),
+      signal: AbortSignal.timeout(TIEMPO_SOLICITUD_MS) });
     if (!r.ok) { const data = await r.json(); throw new Error(data.detail || "No se pudo enviar la respuesta."); }
-  } catch (error) { mostrarError(error.message); return; }
-  timer = setInterval(pollear, 3000);
+  } catch (error) {
+    mostrarError(error.name === "TimeoutError" ? "El servidor no confirmó la recepción de tu respuesta a tiempo." : error.message);
+    return;
+  }
+  pollear();
 }
 </script>
 </body>

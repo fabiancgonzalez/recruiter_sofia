@@ -10,7 +10,7 @@ import httpx
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.types import Command
 from langchain_openai import ChatOpenAI
-from openai import NotFoundError, PermissionDeniedError, RateLimitError
+from openai import APITimeoutError, NotFoundError, PermissionDeniedError, RateLimitError
 
 import api
 import graph_factory
@@ -29,7 +29,7 @@ class BackgroundTests(unittest.IsolatedAsyncioTestCase):
         with patch.object(api.log, "error"), \
              patch.object(api, "PROVIDER", "vercel_ai_gateway"), \
              patch.object(api, "model", SimpleNamespace(model_name="deepseek/deepseek-v4.1-flash-1017")):
-            api._run_background(proc["graph"], proc=proc)
+            api._run_background(proc["graph"], proc=proc, pid="free-tier", fase="screening")
             for _ in range(100):
                 if not proc["running"]:
                     break
@@ -51,7 +51,7 @@ class BackgroundTests(unittest.IsolatedAsyncioTestCase):
         api.PROCESOS["test"] = proc
         self.addCleanup(api.PROCESOS.pop, "test", None)
         with patch.object(api.log, "error"), patch.object(api, "PROVIDER", "groq"):
-            api._run_background(proc["graph"], proc=proc)
+            api._run_background(proc["graph"], proc=proc, pid="test", fase="screening")
             self.assertEqual(api.estado_proceso("test")["estado"], "trabajando")
             release.set()
             for _ in range(100):
@@ -62,6 +62,28 @@ class BackgroundTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["estado"], "error")
         self.assertIn("Groq no tiene créditos", result["error"])
         self.assertFalse(result["pendiente_aprobacion"])
+
+    async def test_timeout_during_interview_stops_running_and_reports_error(self):
+        error = APITimeoutError(request=httpx.Request("POST", "https://example.invalid"))
+
+        def invoke(*args):
+            raise error
+
+        proc = {"graph": SimpleNamespace(invoke=invoke), "config": {}}
+        api.PROCESOS["interview"] = proc
+        self.addCleanup(api.PROCESOS.pop, "interview", None)
+        with self.assertLogs(api.log, level="INFO") as logs, \
+             patch.object(api, "PROVIDER", "groq"):
+            api._run_background(proc["graph"], proc=proc, pid="interview", fase="continuación")
+            for _ in range(100):
+                if not proc["running"]:
+                    break
+                await asyncio.sleep(0.01)
+        result = api.estado_proceso("interview")
+        self.assertEqual(result["estado"], "error")
+        self.assertIn("Groq tardó demasiado", result["error"])
+        self.assertIn("Proceso interview", logs.output[-1])
+        self.assertIn("APITimeoutError", logs.output[-1])
 
     def test_empty_checkpoint_is_not_a_success(self):
         for messages in ([], [HumanMessage(content="CV")]):
@@ -84,7 +106,7 @@ class BackgroundTests(unittest.IsolatedAsyncioTestCase):
             self.addCleanup(api.PROCESOS.pop, "missing-model", None)
             with patch.object(api.log, "error"), patch.object(api, "PROVIDER", "groq"), \
                  patch.object(api, "model", SimpleNamespace(model_name="llama-3.3-70b-versatile")):
-                api._run_background(proc["graph"], proc=proc)
+                api._run_background(proc["graph"], proc=proc, pid="missing-model", fase="screening")
                 for _ in range(100):
                     if not proc["running"]:
                         break
@@ -100,7 +122,7 @@ class GraphTests(unittest.TestCase):
     def test_supervisor_route_survives_state_and_resume(self):
         class Router:
             def __init__(self):
-                self.decisions = iter(["reclutador", "FINALIZAR"])
+                self.decisions = iter(["reclutador"])
 
             def invoke(self, messages):
                 return graph_factory.RouteDecision(next=next(self.decisions))
@@ -130,7 +152,7 @@ class GraphTests(unittest.TestCase):
 
     def test_groq_graph_uses_compatible_requests(self):
         requests = []
-        routes = iter(["reclutador", "FINALIZAR"])
+        routes = iter(["reclutador"])
 
         def respond(request):
             payload = json.loads(request.content)
@@ -169,7 +191,7 @@ class GraphTests(unittest.TestCase):
             graph.invoke(Command(resume="si"), config)
             self.assertEqual(api._snapshot(graph, config)["estado"], "finalizado")
 
-        self.assertEqual(len(requests), 4)
+        self.assertEqual(len(requests), 3)
         for request, payload in requests:
             self.assertEqual(str(request.url), "https://api.groq.com/openai/v1/chat/completions")
             self.assertEqual(request.headers["authorization"], "Bearer test-key")

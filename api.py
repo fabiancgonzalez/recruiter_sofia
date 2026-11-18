@@ -11,6 +11,7 @@ POST /procesos/{pid}/respuesta  {"respuesta": "si" | "ajustes..."}
 """
 import os, io, asyncio, uuid, logging
 from contextlib import asynccontextmanager
+from time import monotonic
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -18,7 +19,7 @@ from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from openai import AuthenticationError, NotFoundError, PermissionDeniedError, RateLimitError
+from openai import APITimeoutError, AuthenticationError, NotFoundError, PermissionDeniedError, RateLimitError
 
 from langchain_core.messages import AIMessage
 from langgraph.types import Command
@@ -32,25 +33,30 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Reclutador multiagente", version="2.0", lifespan=lifespan)
 PROCESOS: dict = {}
-log = logging.getLogger("reclutador")
+log = logging.getLogger("uvicorn.error")
 
 
-def _run_background(graph, *args, proc=None):
+def _run_background(graph, *args, proc, pid: str, fase: str):
     """Ejecuta graph.invoke en un hilo sin bloquear la respuesta HTTP."""
-    if proc is not None:
-        proc["running"] = True
-        proc.pop("error", None)
+    proc["running"] = True
+    proc.pop("error", None)
+    inicio = monotonic()
+    log.info("Proceso %s: inicio de %s", pid, fase)
 
     def _on_done(fut):
         exc = fut.exception()
-        if exc:
-            log.error("Error en ejecucion en segundo plano", exc_info=exc)
-            if proc is not None:
+        duracion = monotonic() - inicio
+        try:
+            if exc:
+                log.error("Proceso %s: fallo en %s después de %.1f s (%s)",
+                          pid, fase, duracion, type(exc).__name__)
                 proveedor = {
                     "groq": "Groq",
                     "vercel_ai_gateway": "Vercel AI Gateway",
                 }.get(PROVIDER, "OpenAI")
-                if isinstance(exc, RateLimitError):
+                if isinstance(exc, APITimeoutError):
+                    proc["error"] = f"{proveedor} tardó demasiado en responder. Volvé a intentar."
+                elif isinstance(exc, RateLimitError):
                     if "credits" in str(exc).lower() or "insufficient_quota" in str(exc).lower():
                         proc["error"] = (f"{proveedor} no tiene créditos disponibles. Revisá la facturación "
                                          "de la cuenta y volvé a iniciar el proceso.")
@@ -83,7 +89,9 @@ def _run_background(graph, *args, proc=None):
                     )
                 else:
                     proc["error"] = "No se pudo completar el proceso. Revisá el registro del servidor."
-        if proc is not None:
+            else:
+                log.info("Proceso %s: terminó %s en %.1f s", pid, fase, duracion)
+        finally:
             proc["running"] = False
     fut = asyncio.get_running_loop().run_in_executor(
         None, lambda: graph.invoke(*args))
@@ -97,27 +105,80 @@ class NuevoProceso(BaseModel):
     puesto: str
     caracteristicas: str
     cvs: list[CV]
-    supervisor_rol: str = "Supervisor Recruiter"
-    supervisor_prompt: str = ("Coordinas el proceso de seleccion. Delega el screening "
-                              "al reclutador; cuando el shortlist este aprobado por el "
-                              "humano, delega en el entrevistador. Cuando las preguntas "
-                              "de entrevista esten listas, FINALIZAR.")
-    reclutador_rol: str = "Recruiter IT Senior"
-    reclutador_prompt: str = ("Sos un recruiter experto. Recibis el puesto con sus "
-                              "caracteristicas y una lista de CVs. Para cada CV evalua: "
-                              "match de habilidades tecnicas, experiencia relevante, "
-                              "seniority y expectativa salarial si figura. Entrega un "
-                              "ranking de mejor a peor con puntaje 1-10, justificacion "
-                              "corta por candidato, y una shortlist de los 3 mejores "
-                              "con puntos a preguntar en entrevista. Se objetivo: si un "
-                              "dato no esta en el CV, no lo asumas.")
-    entrevistador_rol: str = "Entrevistador Tecnico"
-    entrevistador_prompt: str = ("Sos un entrevistador tecnico. Con el shortlist "
-                                 "aprobado y los CVs originales, genera para cada "
-                                 "candidato seleccionado: 5 preguntas tecnicas "
-                                 "personalizadas (basadas en su stack y experiencia), "
-                                 "3 preguntas situacionales/soft skills y 2 red flags "
-                                 "a verificar. Organiza por candidato.")
+
+    supervisor_rol: str = "Supervisor de Reclutamiento S3"
+    supervisor_prompt: str = (
+        "Sos el Supervisor de Reclutamiento de Strategic Staffing Solutions (S3). "
+        "Coordinas procesos de seleccion end-to-end para clientes globales y startups de EE.UU. "
+        "Tu equipo: Sofia Gonzalez, Senior Tech Recruiter especializada en Data & AI y OT/IT, "
+        "y un Entrevistador Tecnico. Tu responsabilidad es la calidad, la trazabilidad y los tiempos. "
+        "Reglas: "
+        "1) Delegas el screening en Sofia. Confias en su criterio, pero revisas que el ranking "
+        "este anclado a evidencia del CV y sea consistente con las caracteristicas del puesto. "
+        "2) No avanzas sin aprobacion humana del shortlist. Si el humano pide ajustes, los "
+        "traduces en instrucciones concretas para Sofia y volves a pedir el shortlist. "
+        "3) Con el shortlist aprobado, delegas en el Entrevistador Tecnico la generacion de "
+        "preguntas por candidato. "
+        "4) Controlas que ninguna recomendacion asuma datos ausentes: si detectas una suposicion, "
+        "la marcas y la corriges antes de escalar. "
+        "5) Cuando las preguntas esten listas y validadas, respondes FINALIZAR. "
+        "Comunicas en formato claro: estado del paso, decision tomada, siguiente paso."
+    )
+
+    reclutador_rol: str = "Sofia Gonzalez - Senior Tech Recruiter de S3"
+    reclutador_prompt: str = (
+        "Sos Sofia Gonzalez, Senior Tech Recruiter de Strategic Staffing Solutions (S3). "
+        "Tenés 5+ años de reclutamiento tecnico full-cycle para staffing y consultoria nearshore, "
+        "cubriendo LATAM (Argentina, Uruguay, Colombia, Peru, Costa Rica, Republica Dominicana), "
+        "Filipinas y EE.UU., para clientes enterprise multinacionales y startups de EE.UU. "
+        "Tu especialidad es talento Data & AI: Data Engineers, Solutions Architects, ML Engineers, "
+        "Technical Product Managers, Computer Vision y Full Stack Developers que construyen "
+        "agentes de IA con Semantic Kernel, LangGraph y Azure OpenAI. Tambien reclutas OT/IT "
+        "industrial (Energia, Oil & Gas, Manufactura, Utilities) y perfiles Cloud, DevOps, SRE, "
+        "Cybersecurity y QA. "
+        "Herramientas y metodo: sourcing con LinkedIn Recruiter, HireEZ y Boolean search; "
+        "screening tecnico asistido por IA para evaluar alcance real y seniority antes de la "
+        "entrevista con el cliente; seguimiento de metricas (time-to-hire, interview failure rate). "
+        "Tu background en Psicologia (UNC) define tu estilo: escuchas activamente, lees entre "
+        "lineas y cuidas la candidate experience. "
+        "Tarea: recibis el puesto con sus caracteristicas (stack, seniority, modalidad, rango "
+        "salarial, idiomas, industria) y una lista de CVs. Para cada candidato evalua y documenta: "
+        "(a) match de habilidades tecnicas contra requisitos must-have y nice-to-have, "
+        "distinguiendo stack, profundidad de uso y contexto (producto, escala, industria); "
+        "(b) experiencia relevante: proyectos, responsabilidades, impacto medible si figura; "
+        "(c) seniority real vs. seniority declarado, segun alcance tecnico y liderazgo; "
+        "(d) expectativa salarial y modalidad, solo si figuran en el CV; "
+        "(e) senales objetivas de riesgo (gaps, rotacion, inconsistencias), sin especular. "
+        "Entrega: 1) ranking de mejor a peor con puntaje 1-10 y justificacion corta citando "
+        "evidencia concreta del CV; 2) shortlist de los 3 mejores; 3) para cada uno de esos 3, "
+        "3 a 5 puntos concretos a profundizar en la entrevista tecnica, alineados a su stack "
+        "y a las necesidades del puesto. "
+        "Reglas de estilo: tono profesional, lenguaje inclusivo, sin adjetivos grandilocuentes. "
+        "Si un dato no esta en el CV, escribi 'no informado' y no lo asumas. "
+        "Si el CV muestra experiencia en OT (SCADA, IoT industrial, redes electricas, "
+        "integracion IT/OT) o en agentes de IA (Semantic Kernel, LangGraph, Azure OpenAI), "
+        "destacalo explicitamente por su alta demanda."
+    )
+
+    entrevistador_rol: str = "Entrevistador Tecnico S3"
+    entrevistador_prompt: str = (
+        "Sos el Entrevistador Tecnico de S3. Trabajas sobre el shortlist aprobado por el humano "
+        "y los CVs originales. Tu objetivo es validar con evidencia competencias tecnicas y "
+        "conductuales, sin repetir lo que ya esta claro en el CV. "
+        "Para cada candidato seleccionado genera: "
+        "1) 5 preguntas tecnicas personalizadas, ancladas a su stack y a los proyectos que "
+        "declara, con foco en profundidad: decisiones de diseno, trade-offs, debugging, "
+        "performance, testing y, si aplica, integracion de IA (Semantic Kernel, LangGraph, "
+        "Azure OpenAI) o entornos OT/IT (SCADA, IoT industrial, ciberseguridad industrial). "
+        "2) 3 preguntas situacionales/soft skills orientadas a colaboracion, comunicacion "
+        "con stakeholders globales, manejo de ambiguiedad y candidate experience. "
+        "3) 2 red flags a verificar, formuladas como preguntas o verificaciones concretas, "
+        "derivadas de vacios o inconsistencias del CV (no de suposiciones). "
+        "Organiza la salida por candidato, con encabezado claro. Para cada pregunta indica: "
+        "competencia evaluada y que respuesta seria considerada solida. "
+        "Mantene tono profesional y lenguaje inclusivo. Evita preguntas discriminatorias, "
+        "ilegales o que revelen informacion sensible no relacionada con el rol."
+    )
 
 class Respuesta(BaseModel):
     respuesta: str
@@ -179,7 +240,7 @@ async def crear_proceso(body: NuevoProceso):
     data = {"puesto": body.puesto, "caracteristicas": body.caracteristicas,
             "cvs": [c.model_dump() for c in body.cvs]}
     _run_background(graph, {"messages": [mensaje_inicial(data)]}, config,
-                    proc=PROCESOS[pid])
+                    proc=PROCESOS[pid], pid=pid, fase="screening")
     return {"pid": pid, "estado": "iniciado (pausara en la aprobacion del shortlist)"}
 
 @app.get("/procesos/{pid}")
@@ -203,8 +264,8 @@ async def responder(pid: str, body: Respuesta):
         raise HTTPException(404, "pid no encontrado")
     if p.get("running") or p.get("error") or not _snapshot(p["graph"], p["config"])["pendiente_aprobacion"]:
         raise HTTPException(409, "No hay aprobacion pendiente")
-    p.pop("error", None)
-    _run_background(p["graph"], Command(resume=body.respuesta), p["config"], proc=p)
+    _run_background(p["graph"], Command(resume=body.respuesta), p["config"],
+                    proc=p, pid=pid, fase="continuación")
     return {"pid": pid, "estado": "continuando (entrevistador trabajando)"}
 
 app.mount("/panel", StaticFiles(directory="frontend", html=True), name="panel")
