@@ -9,15 +9,16 @@ POST /cvs/pdf               multipart: files=[.pdf...] -> [{"nombre", "texto"}]
 GET  /procesos/{pid}        estado + shortlist/preguntas cuando esta en pausa
 POST /procesos/{pid}/respuesta  {"respuesta": "si" | "ajustes..."}
 """
-import os, io, asyncio, uuid, logging
+import os, io, asyncio, uuid, logging, re
 from contextlib import asynccontextmanager
+from html import escape
+from pathlib import Path
 from time import monotonic
 from dotenv import load_dotenv
 load_dotenv()
 
 from fastapi import FastAPI, HTTPException, UploadFile, File
-from fastapi.responses import RedirectResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel
 from openai import APITimeoutError, AuthenticationError, NotFoundError, PermissionDeniedError, RateLimitError
 
@@ -222,6 +223,17 @@ def _snapshot(graph, config) -> dict:
 def home():
     return RedirectResponse("/panel")
 
+@app.api_route("/panel", methods=["GET", "HEAD"], response_class=HTMLResponse, include_in_schema=False)
+@app.api_route("/panel/", methods=["GET", "HEAD"], response_class=HTMLResponse, include_in_schema=False)
+@app.api_route("/panel/index.html", methods=["GET", "HEAD"], response_class=HTMLResponse, include_in_schema=False)
+def panel() -> str:
+    plantilla = Path(__file__).with_name("frontend").joinpath("index.html").read_text(encoding="utf-8")
+    return re.sub(
+        r"\{\{ (\w+) \}\}",
+        lambda marca: escape(NuevoProceso.model_fields[marca[1]].default),
+        plantilla,
+    )
+
 @app.post("/procesos")
 async def crear_proceso(body: NuevoProceso):
     if not body.cvs:
@@ -267,5 +279,3 @@ async def responder(pid: str, body: Respuesta):
     _run_background(p["graph"], Command(resume=body.respuesta), p["config"],
                     proc=p, pid=pid, fase="continuación")
     return {"pid": pid, "estado": "continuando (entrevistador trabajando)"}
-
-app.mount("/panel", StaticFiles(directory="frontend", html=True), name="panel")

@@ -418,15 +418,15 @@
         <div class="subcard">
           <div class="card-header" role="button" tabindex="0" aria-expanded="false" onclick="toggleSub(this)">
             <span class="icon">S</span>
-            <h2>Supervisor Recruiter</h2>
+            <h2>{{ supervisor_rol }}</h2>
             <span class="chevron">▾</span>
           </div>
           <div class="card-body">
             <div class="inner">
-              <label>Rol del supervisor recruiter</label>
-              <input type="text" id="sup-rol" value="Supervisor Recruiter">
-              <label>Prompt del supervisor recruiter</label>
-              <textarea id="sup-prompt" rows="3">Coordinás el inicio del proceso de selección. Delegá el screening en el reclutador.</textarea>
+              <label for="sup-rol">Rol del supervisor recruiter</label>
+              <input type="text" id="sup-rol" value="{{ supervisor_rol }}">
+              <label for="sup-prompt">Prompt del supervisor recruiter</label>
+              <textarea id="sup-prompt" rows="3">{{ supervisor_prompt }}</textarea>
             </div>
           </div>
         </div>
@@ -434,15 +434,15 @@
         <div class="subcard">
           <div class="card-header" role="button" tabindex="0" aria-expanded="false" onclick="toggleSub(this)">
             <span class="icon">R</span>
-            <h2>Recruiter IT Senior</h2>
+            <h2>{{ reclutador_rol }}</h2>
             <span class="chevron">▾</span>
           </div>
           <div class="card-body">
             <div class="inner">
-              <label>Rol del recruiter</label>
-              <input type="text" id="rec-rol" value="Recruiter IT Senior">
-              <label>Prompt del recruiter</label>
-              <textarea id="rec-prompt" rows="5">Sos un recruiter experto. Recibís el puesto con sus características y una lista de CVs. Para cada CV evaluá: match de habilidades técnicas, experiencia relevante, seniority y expectativa salarial si figura. Entregá un ranking de mejor a peor con puntaje 1-10, justificación corta por candidato, y una shortlist de los 3 mejores. Sé objetivo: si un dato no está en el CV, no lo asumas.</textarea>
+              <label for="rec-rol">Rol del recruiter</label>
+              <input type="text" id="rec-rol" value="{{ reclutador_rol }}">
+              <label for="rec-prompt">Prompt del recruiter</label>
+              <textarea id="rec-prompt" rows="5">{{ reclutador_prompt }}</textarea>
             </div>
           </div>
         </div>
@@ -450,15 +450,15 @@
         <div class="subcard">
           <div class="card-header" role="button" tabindex="0" aria-expanded="false" onclick="toggleSub(this)">
             <span class="icon">E</span>
-            <h2>Entrevistador Técnico</h2>
+            <h2>{{ entrevistador_rol }}</h2>
             <span class="chevron">▾</span>
           </div>
           <div class="card-body">
             <div class="inner">
-              <label>Rol del entrevistador</label>
-              <input type="text" id="ent-rol" value="Entrevistador Técnico">
-              <label>Prompt del entrevistador</label>
-              <textarea id="ent-prompt" rows="5">Sos un entrevistador técnico. Con el shortlist aprobado y los CVs originales, generá para cada candidato seleccionado: 5 preguntas técnicas personalizadas (basadas en su stack y experiencia), 3 preguntas situacionales/soft skills y 2 red flags a verificar. Organizá todo por candidato.</textarea>
+              <label for="ent-rol">Rol del entrevistador</label>
+              <input type="text" id="ent-rol" value="{{ entrevistador_rol }}">
+              <label for="ent-prompt">Prompt del entrevistador</label>
+              <textarea id="ent-prompt" rows="5">{{ entrevistador_prompt }}</textarea>
             </div>
           </div>
         </div>

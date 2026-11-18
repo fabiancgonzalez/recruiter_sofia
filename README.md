@@ -7,6 +7,9 @@ personalizadas por candidato) -> fin.
 Roles y prompts de los 3 agentes editables desde el panel; el grafo se
 construye dinamico por proceso con build_graph(cfg). El supervisor enruta
 al inicio; al terminar el entrevistador, no se vuelve a consultar al supervisor.
+Al abrir `/panel`, los campos se precargan con los valores por defecto de
+`NuevoProceso` en `api.py`. Los cambios del formulario se aplican solo al
+proceso que se inicia con ellos.
 
 ## Instalacion
     python -m venv .venv && source .venv/bin/activate

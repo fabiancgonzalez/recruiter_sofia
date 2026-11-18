@@ -3,10 +3,12 @@ import json
 import os
 import threading
 import unittest
+from html import escape
 from types import SimpleNamespace
 from unittest.mock import patch
 
 import httpx
+from fastapi.testclient import TestClient
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.types import Command
 from langchain_openai import ChatOpenAI
@@ -14,6 +16,31 @@ from openai import APITimeoutError, NotFoundError, PermissionDeniedError, RateLi
 
 import api
 import graph_factory
+
+
+class PanelTests(unittest.TestCase):
+    def test_panel_prefills_defaults_for_the_three_agents(self):
+        response = TestClient(api.app).get("/panel")
+        self.assertEqual(response.status_code, 200)
+        defaults = api.NuevoProceso(puesto="", caracteristicas="", cvs=[])
+        for prefijo, agente in (("sup", "supervisor"), ("rec", "reclutador"), ("ent", "entrevistador")):
+            with self.subTest(agente=agente):
+                rol = escape(getattr(defaults, f"{agente}_rol"))
+                prompt = escape(getattr(defaults, f"{agente}_prompt"))
+                self.assertIn(f'id="{prefijo}-rol" value="{rol}"', response.text)
+                self.assertRegex(response.text, rf'<textarea id="{prefijo}-prompt"[^>]*>')
+                self.assertIn(f">{prompt}</textarea>", response.text)
+
+    def test_panel_escapes_default_text_as_html(self):
+        fields = api.NuevoProceso.model_fields
+        rol = 'Rol "A" & "B"'
+        prompt = 'Escribi <b>HTML</b> & texto.'
+        with patch.object(fields["supervisor_rol"], "default", rol), \
+             patch.object(fields["supervisor_prompt"], "default", prompt):
+            response = TestClient(api.app).get("/panel/")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('id="sup-rol" value="Rol &quot;A&quot; &amp; &quot;B&quot;"', response.text)
+        self.assertIn('>Escribi &lt;b&gt;HTML&lt;/b&gt; &amp; texto.</textarea>', response.text)
 
 
 class BackgroundTests(unittest.IsolatedAsyncioTestCase):
