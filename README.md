@@ -32,6 +32,19 @@ despliegues, montá un volumen, por ejemplo en `/data`, y configurá
 `CHECKPOINT_DB=/data/checkpoints_reclutador.sqlite`. Esto conserva los
 checkpoints, pero no recupera los procesos activos en memoria tras un reinicio.
 
+## Deteccion de FastAPI en Vercel
+`pyproject.toml` declara `api:app` como entrypoint para evitar el error
+`FASTAPI_ENTRYPOINT_NOT_FOUND`. Usá la raíz del repositorio como Root Directory
+y el preset FastAPI. Las dependencias siguen en `requirements.txt`.
+
+Esto corrige la detección, pero no adapta el flujo completo a Vercel Functions:
+los procesos activos viven en memoria y pueden perderse o no estar disponibles
+en otra instancia; el trabajo en segundo plano no tiene garantizada su
+continuidad después de responder. SQLite tampoco puede escribirse en el
+directorio de la aplicación; `/tmp` es temporal y no compartido.
+Para producción con la arquitectura actual, usá Railway. Vercel AI Gateway
+puede utilizarse desde Railway sin desplegar la aplicación en Vercel.
+
 ## Proveedor del modelo
 Configurá uno de estos proveedores en `.env` y reiniciá el servidor al cambiarlo:
 

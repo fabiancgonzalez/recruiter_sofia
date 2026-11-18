@@ -6,153 +6,634 @@
 <title>Reclutador multiagente</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; padding: 2rem; }
-  main { max-width: 900px; margin: 0 auto; }
-  h1 { font-size: 1.4rem; color: #93c5fd; margin-bottom: .25rem; }
-  .sub { color: #64748b; font-size: .85rem; margin-bottom: 1.5rem; }
-  .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; }
-  .card h2 { font-size: .95rem; color: #93c5fd; margin-bottom: .75rem; }
-  label { display: block; font-size: .78rem; color: #94a3b8; margin: .6rem 0 .25rem; }
+
+  /* ============ TEMA OSCURO (default) ============ */
+  :root, [data-theme="dark"] {
+    --bg-1: #0d0b14;
+    --bg-2: #14101f;
+    --bg-radial-1: #1e1633;
+    --bg-radial-2: #1a1428;
+    --bg-radial-3: #1a1024;
+    --text: #ece9f5;
+    --text-muted: #a39db8;
+    --border: #2e2840;
+    --input-bg: #0c0a12;
+    --surface-rgba: rgba(0,0,0,.2);
+    --surface-rgba-2: rgba(0,0,0,.25);
+    --hover-row: rgba(255,255,255,.04);
+    --shadow: 0 8px 30px rgba(0,0,0,.45);
+    --shadow-hover: 0 12px 40px rgba(0,0,0,.55);
+    --pre-bg: #0c0a12;
+    --pre-text: #d6d0e8;
+
+    --card-config: linear-gradient(145deg, #1c1633, #14101f);
+    --card-config-b: #3b2f5e;
+    --card-puesto: linear-gradient(145deg, #2a2012, #16110a);
+    --card-puesto-b: #5e4416;
+    --card-cvs: linear-gradient(145deg, #102a22, #0b1612);
+    --card-cvs-b: #1e5e47;
+    --card-aprobacion: linear-gradient(145deg, #2a1224, #160a13);
+    --card-aprobacion-b: #5e1e44;
+    --card-candidatos: linear-gradient(145deg, #0f2530, #0a1319);
+    --card-candidatos-b: #1e4a5e;
+    --card-final: linear-gradient(145deg, #16271a, #0b1610);
+    --card-final-b: #2a5e2e;
+    --card-inicio: linear-gradient(145deg, #1a1526, #15111e);
+
+    --violeta: #c4b5fd; --violeta-bg: #8b5cf61a;
+    --ambar: #fcd34d;   --ambar-bg: #f59e0b1a;
+    --verde: #6ee7b7;   --verde-bg: #34d3991a;
+    --rosa: #f9a8d4;    --rosa-bg: #f472b61a;
+    --cian: #67e8f9;    --cian-bg: #22d3ee1a;
+  }
+
+  /* ============ TEMA CLARO ============ */
+  [data-theme="light"] {
+    --bg-1: #fdf9f3;
+    --bg-2: #f3eefb;
+    --bg-radial-1: #fce7f3;
+    --bg-radial-2: #ede9fe;
+    --bg-radial-3: #fef3c7;
+    --text: #2a2340;
+    --text-muted: #6b6383;
+    --border: #ddd6ec;
+    --input-bg: #ffffff;
+    --surface-rgba: rgba(255,255,255,.7);
+    --surface-rgba-2: rgba(255,255,255,.85);
+    --hover-row: rgba(139,92,246,.06);
+    --shadow: 0 6px 24px rgba(80,60,120,.12);
+    --shadow-hover: 0 10px 32px rgba(80,60,120,.18);
+    --pre-bg: #fbf8ff;
+    --pre-text: #3d3555;
+
+    --card-config: linear-gradient(145deg, #f5f0ff, #ede4ff);
+    --card-config-b: #d6c7f5;
+    --card-puesto: linear-gradient(145deg, #fff8e6, #fdf0d5);
+    --card-puesto-b: #f0d9a0;
+    --card-cvs: linear-gradient(145deg, #eafaf1, #d9f5e6);
+    --card-cvs-b: #a8e0c4;
+    --card-aprobacion: linear-gradient(145deg, #fff0f7, #fde3ef);
+    --card-aprobacion-b: #f3bcd7;
+    --card-candidatos: linear-gradient(145deg, #e8f8fc, #d5eff8);
+    --card-candidatos-b: #a3dcea;
+    --card-final: linear-gradient(145deg, #eefaf0, #ddf5e3);
+    --card-final-b: #a9e0b8;
+    --card-inicio: linear-gradient(145deg, #f8f4ff, #efe9fb);
+
+    --violeta: #7c3aed; --violeta-bg: #8b5cf61f;
+    --ambar: #b45309;   --ambar-bg: #f59e0b22;
+    --verde: #047857;   --verde-bg: #34d39922;
+    --rosa: #be185d;    --rosa-bg: #f472b622;
+    --cian: #0e7490;    --cian-bg: #22d3ee22;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background:
+      radial-gradient(ellipse at 10% 0%, var(--bg-radial-1) 0%, transparent 50%),
+      radial-gradient(ellipse at 90% 20%, var(--bg-radial-2) 0%, transparent 50%),
+      radial-gradient(ellipse at 50% 100%, var(--bg-radial-3) 0%, transparent 60%),
+      linear-gradient(180deg, var(--bg-1), var(--bg-2));
+    color: var(--text);
+    padding: 2.5rem 1rem 4rem;
+    min-height: 100vh;
+    line-height: 1.5;
+    background-attachment: fixed;
+    transition: background .5s ease, color .3s ease;
+  }
+  main { max-width: 980px; margin: 0 auto; }
+
+  /* ---------- Toggle tema ---------- */
+  .theme-toggle {
+    position: fixed;
+    top: 1.25rem;
+    right: 1.25rem;
+    z-index: 100;
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .55rem .9rem;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface-rgba-2);
+    backdrop-filter: blur(10px);
+    color: var(--text);
+    cursor: pointer;
+    font-size: .85rem;
+    font-weight: 600;
+    font-family: inherit;
+    box-shadow: var(--shadow);
+    transition: all var(--transition);
+  }
+  .theme-toggle:hover { box-shadow: var(--shadow-hover); transform: translateY(-1px); }
+  .theme-toggle .track {
+    width: 42px; height: 22px;
+    background: var(--border);
+    border-radius: 999px;
+    position: relative;
+    transition: background var(--transition);
+  }
+  .theme-toggle .knob {
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 18px; height: 18px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform var(--transition), background var(--transition);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px;
+    line-height: 1;
+  }
+  [data-theme="light"] .theme-toggle .track { background: #8b5cf6; }
+  [data-theme="light"] .theme-toggle .knob { transform: translateX(20px); }
+
+  h1 {
+    font-size: 1.9rem;
+    font-weight: 800;
+    background: linear-gradient(90deg, #8b5cf6, #f59e0b, #34d399, #f472b6);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    margin-bottom: .3rem;
+    letter-spacing: -.02em;
+    animation: shimmer 8s linear infinite;
+  }
+  @keyframes shimmer { to { background-position: 200% center; } }
+  .sub { color: var(--text-muted); font-size: .9rem; margin-bottom: 2.2rem; max-width: 70ch; }
+
+  /* ---------- Cards ---------- */
+  .card {
+    border-radius: var(--radius, 16px);
+    margin-bottom: 1.3rem;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    transition: border-color .28s, box-shadow .28s, background .5s;
+    animation: fadeIn .45s ease both;
+    border: 1px solid var(--border);
+    background: var(--card-inicio);
+  }
+  .card:hover { box-shadow: var(--shadow-hover); }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  #card-config  { background: var(--card-config);  border-color: var(--card-config-b); }
+  #card-puesto  { background: var(--card-puesto);  border-color: var(--card-puesto-b); }
+  #card-cvs     { background: var(--card-cvs);     border-color: var(--card-cvs-b); }
+  #card-aprobacion  { background: var(--card-aprobacion);  border-color: var(--card-aprobacion-b); }
+  #card-candidatos  { background: var(--card-candidatos);  border-color: var(--card-candidatos-b); }
+  #card-final   { background: var(--card-final);   border-color: var(--card-final-b); }
+  #card-inicio  { background: var(--card-inicio);  border-color: var(--border); }
+
+  /* Cabecera */
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: .7rem;
+    padding: 1.05rem 1.3rem;
+    cursor: pointer;
+    user-select: none;
+    transition: background .28s, border-color .28s;
+    position: relative;
+  }
+  .card-header:hover { background: rgba(139,92,246,.06); }
+  .card-header[aria-expanded="true"] { border-bottom: 1px solid var(--border); }
+  .card-header h2 { font-size: 1rem; font-weight: 700; flex: 1; display: flex; align-items: center; gap: .5rem; }
+  .card-header .icon {
+    width: 26px; height: 26px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 8px;
+    font-size: .8rem; font-weight: 800;
+    flex-shrink: 0;
+  }
+  .card-header .chevron {
+    width: 20px; height: 20px;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--text-muted);
+    transition: transform .28s;
+    flex-shrink: 0;
+  }
+  .card-header[aria-expanded="true"] .chevron { transform: rotate(180deg); }
+
+  #card-config .card-header h2   { color: var(--violeta); }
+  #card-config .card-header .icon { background: var(--violeta-bg); color: var(--violeta); }
+  #card-puesto .card-header h2   { color: var(--ambar); }
+  #card-puesto .card-header .icon { background: var(--ambar-bg); color: var(--ambar); }
+  #card-cvs .card-header h2      { color: var(--verde); }
+  #card-cvs .card-header .icon   { background: var(--verde-bg); color: var(--verde); }
+  #card-aprobacion .card-header h2 { color: var(--rosa); }
+  #card-aprobacion .card-header .icon { background: var(--rosa-bg); color: var(--rosa); }
+  #card-candidatos .card-header h2 { color: var(--cian); }
+  #card-candidatos .card-header .icon { background: var(--cian-bg); color: var(--cian); }
+
+  /* Cuerpo colapsable */
+  .card-body {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows .28s cubic-bezier(.4,0,.2,1);
+  }
+  .card-body > .inner { overflow: hidden; min-height: 0; padding: 0 1.3rem 1.3rem; }
+  .card-body:not(.open) > .inner { padding-bottom: 0; }
+  .card-body.open { grid-template-rows: 1fr; }
+
+  /* Subcards */
+  .subcard {
+    border-radius: 12px;
+    margin-top: .8rem;
+    border: 1px solid var(--border);
+    overflow: hidden;
+    background: var(--surface-rgba);
+    transition: background .5s;
+  }
+  .subcard:nth-child(1) { border-color: var(--violeta); }
+  .subcard:nth-child(2) { border-color: var(--ambar); }
+  .subcard:nth-child(3) { border-color: var(--verde); }
+  .subcard .card-header { padding: .8rem 1rem; }
+  .subcard .card-header h2 { font-size: .92rem; }
+  .subcard:nth-child(1) .card-header h2 { color: var(--violeta); }
+  .subcard:nth-child(2) .card-header h2 { color: var(--ambar); }
+  .subcard:nth-child(3) .card-header h2 { color: var(--verde); }
+  .subcard:nth-child(1) .card-header .icon { background: var(--violeta-bg); color: var(--violeta); }
+  .subcard:nth-child(2) .card-header .icon { background: var(--ambar-bg); color: var(--ambar); }
+  .subcard:nth-child(3) .card-header .icon { background: var(--verde-bg); color: var(--verde); }
+  .subcard .card-body > .inner { padding: 0 1rem 1rem; }
+  .subcard .card-body:not(.open) > .inner { padding-bottom: 0; }
+
+  /* Formularios */
+  label {
+    display: block;
+    font-size: .74rem; font-weight: 600;
+    color: var(--text-muted);
+    margin: .8rem 0 .3rem;
+    text-transform: uppercase; letter-spacing: .05em;
+  }
   input[type=text], textarea {
-    width: 100%; padding: .55rem; border-radius: 8px; border: 1px solid #475569;
-    background: #0f172a; color: #e2e8f0; font-size: .9rem; }
-  textarea { resize: vertical; font-family: inherit; }
-  button { padding: .55rem 1.1rem; border: 0; border-radius: 8px; cursor: pointer; font-weight: 600; }
-  .btn-primario { background: #3b82f6; color: #fff; }
-  .btn-ok { background: #22c55e; color: #052e16; }
-  .btn-no { background: #f59e0b; color: #451a03; }
-  .btn-mini { background: #334155; color: #e2e8f0; font-size: .8rem; padding: .35rem .8rem; }
+    width: 100%;
+    padding: .65rem .8rem;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--input-bg);
+    color: var(--text);
+    font-size: .9rem;
+    font-family: inherit;
+    transition: border-color .28s, box-shadow .28s, background .5s;
+  }
+  input[type=text]:focus, textarea:focus {
+    outline: none;
+    border-color: #8b5cf6;
+    box-shadow: 0 0 0 3px #8b5cf633;
+  }
+  textarea { resize: vertical; min-height: 80px; }
+
+  /* Botones */
+  button {
+    padding: .6rem 1.2rem;
+    border: 0; border-radius: 10px;
+    cursor: pointer;
+    font-weight: 600; font-size: .9rem;
+    font-family: inherit;
+    transition: all .28s;
+  }
+  button:active { transform: scale(.97); }
   button:disabled { opacity: .4; cursor: not-allowed; }
-  .row { display: flex; gap: .5rem; margin-top: .75rem; flex-wrap: wrap; align-items: center; }
-  .estado { font-size: .85rem; color: #94a3b8; margin-top: .5rem; }
-  .badge { display: inline-block; padding: .2rem .6rem; border-radius: 999px; font-size: .75rem; font-weight: 700; }
-  .badge-pausa { background: #f59e0b33; color: #fbbf24; }
-  .badge-fin { background: #22c55e33; color: #4ade80; }
-  pre { white-space: pre-wrap; background: #0f172a; padding: 1rem; border-radius: 8px;
-        max-height: 50vh; overflow: auto; font-size: .85rem; line-height: 1.5; }
-  .hidden { display: none; }
-  .cv-item { border: 1px dashed #475569; border-radius: 10px; padding: .75rem; margin-top: .6rem; }
-  .tabla-candidatos { overflow: auto; max-width: 100%; }
+  .btn-primario {
+    background: linear-gradient(135deg, #8b5cf6, #f472b6);
+    color: #fff;
+    box-shadow: 0 4px 16px #8b5cf644;
+  }
+  .btn-primario:hover { box-shadow: 0 6px 22px #8b5cf666; filter: brightness(1.08); }
+  .btn-ok {
+    background: linear-gradient(135deg, #34d399, #22d3ee);
+    color: #062a24;
+    box-shadow: 0 4px 16px #34d39944;
+  }
+  .btn-ok:hover { filter: brightness(1.08); }
+  .btn-no {
+    background: linear-gradient(135deg, #f59e0b, #fb923c);
+    color: #3a1e00;
+    box-shadow: 0 4px 16px #f59e0b44;
+  }
+  .btn-no:hover { filter: brightness(1.08); }
+  .btn-mini {
+    background: var(--surface-rgba-2);
+    color: var(--text);
+    font-size: .8rem;
+    padding: .42rem .95rem;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .btn-mini:hover { background: var(--border); }
+  .row { display: flex; gap: .6rem; margin-top: 1rem; flex-wrap: wrap; align-items: center; }
+
+  /* Estados */
+  .estado { font-size: .85rem; color: var(--text-muted); margin-top: .6rem; min-height: 1.2em; }
+  .badge {
+    display: inline-block;
+    padding: .28rem .8rem;
+    border-radius: 999px;
+    font-size: .75rem; font-weight: 700;
+    letter-spacing: .02em;
+  }
+  .badge-pausa { background: #f59e0b22; color: #d97706; border: 1px solid #f59e0b55; }
+  [data-theme="dark"] .badge-pausa { color: #fbbf24; }
+  .badge-fin { background: #34d39922; color: #047857; border: 1px solid #34d39955; }
+  [data-theme="dark"] .badge-fin { color: #6ee7b7; }
+
+  /* Pre */
+  pre {
+    white-space: pre-wrap;
+    background: var(--pre-bg);
+    color: var(--pre-text);
+    padding: 1rem 1.25rem;
+    border-radius: 10px;
+    max-height: 50vh;
+    overflow: auto;
+    font-size: .85rem;
+    line-height: 1.6;
+    border: 1px solid var(--border);
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    transition: background .5s, color .3s;
+  }
+
+  .hidden { display: none !important; }
+
+  /* CV items */
+  .cv-item {
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    padding: .9rem;
+    margin-top: .75rem;
+    background: var(--surface-rgba-2);
+    transition: background .5s;
+  }
+  .cv-item input, .cv-item textarea { margin-top: .4rem; }
+
+  /* Tabla */
+  .tabla-candidatos {
+    overflow: auto;
+    max-width: 100%;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    margin-top: .75rem;
+    background: var(--surface-rgba-2);
+    transition: background .5s;
+  }
   table { width: 100%; border-collapse: collapse; text-align: left; }
-  caption { text-align: left; margin-bottom: .5rem; }
-  th, td { padding: .6rem; border-bottom: 1px solid #475569; }
-  .tabla-candidatos label { margin: 0; color: inherit; }
+  caption { text-align: left; margin-bottom: .5rem; color: var(--text-muted); font-size: .85rem; padding: .5rem .75rem 0; }
+  th, td { padding: .7rem .9rem; border-bottom: 1px solid var(--border); }
+  tbody tr:last-child td, tbody tr:last-child th { border-bottom: 0; }
+  tbody tr:hover { background: var(--hover-row); }
+  .tabla-candidatos label { margin: 0; color: inherit; text-transform: none; letter-spacing: 0; font-size: .9rem; }
+
+  @media (max-width: 600px) {
+    body { padding: 1.5rem .8rem 3rem; }
+    h1 { font-size: 1.5rem; }
+    .card-header { padding: .9rem 1rem; }
+    .card-body > .inner { padding: 0 1rem 1rem; }
+    .theme-toggle { top: .75rem; right: .75rem; padding: .4rem .7rem; font-size: .75rem; }
+  }
 </style>
 </head>
-<body>
+<body data-theme="dark">
 <main>
+  <button class="theme-toggle" onclick="toggleTheme()" aria-label="Cambiar tema">
+    <span id="theme-label">Oscuro</span>
+    <span class="track"><span class="knob" id="knob">🌙</span></span>
+  </button>
+
   <h1>Reclutador multiagente</h1>
-  <div class="sub">Supervisor recruiter + recruiter + entrevistador &mdash; roles y prompts editables, CVs (incluidos PDF) y posición configurables</div>
+  <div class="sub">Supervisor recruiter + recruiter + entrevistador — roles y prompts editables, CVs (incluidos PDF) y posición configurables</div>
 
-  <!-- ================= CONFIG ================= -->
+  <!-- ================= EQUIPO ================= -->
   <div class="card" id="card-config">
-    <h2>1. Equipo de agentes (editá roles y prompts)</h2>
+    <div class="card-header" role="button" tabindex="0" aria-expanded="true" aria-controls="body-config" onclick="toggleCard(this)">
+      <span class="icon">⚙</span>
+      <h2>1. Equipo de agentes</h2>
+      <span class="chevron">▾</span>
+    </div>
+    <div class="card-body open" id="body-config">
+      <div class="inner">
+        <div class="subcard">
+          <div class="card-header" role="button" tabindex="0" aria-expanded="false" onclick="toggleSub(this)">
+            <span class="icon">S</span>
+            <h2>Supervisor Recruiter</h2>
+            <span class="chevron">▾</span>
+          </div>
+          <div class="card-body">
+            <div class="inner">
+              <label>Rol del supervisor recruiter</label>
+              <input type="text" id="sup-rol" value="Supervisor Recruiter">
+              <label>Prompt del supervisor recruiter</label>
+              <textarea id="sup-prompt" rows="3">Coordinás el proceso de selección. Delegá el screening en el reclutador; cuando el shortlist esté aprobado por el humano, delegá en el entrevistador. Cuando las preguntas de entrevista estén listas, FINALIZAR.</textarea>
+            </div>
+          </div>
+        </div>
 
-    <label>Rol del supervisor recruiter</label>
-    <input type="text" id="sup-rol" value="Supervisor Recruiter">
+        <div class="subcard">
+          <div class="card-header" role="button" tabindex="0" aria-expanded="false" onclick="toggleSub(this)">
+            <span class="icon">R</span>
+            <h2>Recruiter IT Senior</h2>
+            <span class="chevron">▾</span>
+          </div>
+          <div class="card-body">
+            <div class="inner">
+              <label>Rol del recruiter</label>
+              <input type="text" id="rec-rol" value="Recruiter IT Senior">
+              <label>Prompt del recruiter</label>
+              <textarea id="rec-prompt" rows="5">Sos un recruiter experto. Recibís el puesto con sus características y una lista de CVs. Para cada CV evaluá: match de habilidades técnicas, experiencia relevante, seniority y expectativa salarial si figura. Entregá un ranking de mejor a peor con puntaje 1-10, justificación corta por candidato, y una shortlist de los 3 mejores. Sé objetivo: si un dato no está en el CV, no lo asumas.</textarea>
+            </div>
+          </div>
+        </div>
 
-    <label>Prompt del supervisor recruiter</label>
-    <textarea id="sup-prompt" rows="3">Coordinás el proceso de selección. Delegá el screening en el reclutador; cuando el shortlist esté aprobado por el humano, delegá en el entrevistador. Cuando las preguntas de entrevista estén listas, FINALIZAR.</textarea>
-
-    <label>Rol del recruiter</label>
-    <input type="text" id="rec-rol" value="Recruiter IT Senior">
-
-    <label>Prompt del recruiter</label>
-    <textarea id="rec-prompt" rows="5">Sos un recruiter experto. Recibís el puesto con sus características y una lista de CVs. Para cada CV evaluá: match de habilidades técnicas, experiencia relevante, seniority y expectativa salarial si figura. Entregá un ranking de mejor a peor con puntaje 1-10, justificación corta por candidato, y una shortlist de los 3 mejores. Sé objetivo: si un dato no está en el CV, no lo asumas.</textarea>
-
-    <label>Rol del entrevistador</label>
-    <input type="text" id="ent-rol" value="Entrevistador Técnico">
-
-    <label>Prompt del entrevistador</label>
-    <textarea id="ent-prompt" rows="5">Sos un entrevistador técnico. Con el shortlist aprobado y los CVs originales, generá para cada candidato seleccionado: 5 preguntas técnicas personalizadas (basadas en su stack y experiencia), 3 preguntas situacionales/soft skills y 2 red flags a verificar. Organizá todo por candidato.</textarea>
+        <div class="subcard">
+          <div class="card-header" role="button" tabindex="0" aria-expanded="false" onclick="toggleSub(this)">
+            <span class="icon">E</span>
+            <h2>Entrevistador Técnico</h2>
+            <span class="chevron">▾</span>
+          </div>
+          <div class="card-body">
+            <div class="inner">
+              <label>Rol del entrevistador</label>
+              <input type="text" id="ent-rol" value="Entrevistador Técnico">
+              <label>Prompt del entrevistador</label>
+              <textarea id="ent-prompt" rows="5">Sos un entrevistador técnico. Con el shortlist aprobado y los CVs originales, generá para cada candidato seleccionado: 5 preguntas técnicas personalizadas (basadas en su stack y experiencia), 3 preguntas situacionales/soft skills y 2 red flags a verificar. Organizá todo por candidato.</textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- ================= POSICIÓN ================= -->
   <div class="card" id="card-puesto">
-    <h2>2. Posición a cubrir</h2>
-    <label>Nombre del puesto</label>
-    <input type="text" id="puesto" value="Desarrollador Backend Python Semi-Senior">
-
-    <label>Características del puesto (habilidades, seniority, modalidad, rango salarial, etc.)</label>
-    <textarea id="caracteristicas" rows="5">Python 3.10+, FastAPI o Django, SQL, Docker, Git.
+    <div class="card-header" role="button" tabindex="0" aria-expanded="true" aria-controls="body-puesto" onclick="toggleCard(this)">
+      <span class="icon">📋</span>
+      <h2>2. Posición a cubrir</h2>
+      <span class="chevron">▾</span>
+    </div>
+    <div class="card-body open" id="body-puesto">
+      <div class="inner">
+        <label>Nombre del puesto</label>
+        <input type="text" id="puesto" value="Desarrollador Backend Python Semi-Senior">
+        <label>Características del puesto (habilidades, seniority, modalidad, rango salarial, etc.)</label>
+        <textarea id="caracteristicas" rows="5">Python 3.10+, FastAPI o Django, SQL, Docker, Git.
 3+ años de experiencia. Modalidad híbrida CABA.
 Rango: $1.800.000-$2.400.000 ARS brutos. Inglés intermedio deseable.</textarea>
+      </div>
+    </div>
   </div>
 
   <!-- ================= CVS ================= -->
   <div class="card" id="card-cvs">
-    <h2>3. Curriculums vitae</h2>
-    <div id="lista-cvs"></div>
-    <div class="row">
-      <button class="btn-mini" onclick="agregarCV()">+ Agregar CV (pegar texto)</button>
-      <input type="file" id="archivos" multiple accept=".txt,.md,.pdf"
-             style="color:#94a3b8;font-size:.8rem">
+    <div class="card-header" role="button" tabindex="0" aria-expanded="true" aria-controls="body-cvs" onclick="toggleCard(this)">
+      <span class="icon">📄</span>
+      <h2>3. Curriculums vitae</h2>
+      <span class="chevron">▾</span>
     </div>
-    <div class="estado" id="msg-cvs"></div>
+    <div class="card-body open" id="body-cvs">
+      <div class="inner">
+        <div id="lista-cvs"></div>
+        <div class="row">
+          <button class="btn-mini" onclick="agregarCV()">+ Agregar CV (pegar texto)</button>
+          <input type="file" id="archivos" multiple accept=".txt,.md,.pdf" style="color:var(--text-muted);font-size:.8rem">
+        </div>
+        <div class="estado" id="msg-cvs"></div>
+      </div>
+    </div>
   </div>
 
   <!-- ================= ARRANQUE ================= -->
   <div class="card" id="card-inicio">
-    <div class="row">
-      <button class="btn-primario" onclick="iniciar()">Iniciar proceso</button>
+    <div class="card-body open">
+      <div class="inner" style="padding-top:1.3rem">
+        <div class="row" style="margin-top:0">
+          <button class="btn-primario" onclick="iniciar()">Iniciar proceso</button>
+        </div>
+        <div class="estado" id="msg-inicio" role="alert"></div>
+      </div>
     </div>
-    <div class="estado" id="msg-inicio" role="alert"></div>
   </div>
 
   <!-- ================= PROGRESO ================= -->
   <div class="card hidden" id="card-progreso">
-    <span class="badge badge-pausa" id="badge">trabajando...</span>
-    <div class="estado" id="msg-progreso"></div>
-    <div class="estado" id="msg-error" role="alert"></div>
-    <div class="row hidden" id="acciones-error">
-      <button class="btn-primario" onclick="volverAEditar()">Volver a editar y reintentar</button>
+    <div class="card-body open">
+      <div class="inner" style="padding-top:1.3rem">
+        <span class="badge badge-pausa" id="badge">trabajando...</span>
+        <div class="estado" id="msg-progreso"></div>
+        <div class="estado" id="msg-error" role="alert"></div>
+        <div class="row hidden" id="acciones-error">
+          <button class="btn-primario" onclick="volverAEditar()">Volver a editar y reintentar</button>
+        </div>
+      </div>
     </div>
   </div>
 
   <!-- ================= APROBACIÓN ================= -->
   <div class="card hidden" id="card-aprobacion">
-    <h2>Shortlist listo &mdash; aprobalo o pedí ajustes</h2>
-    <pre id="shortlist"></pre>
-    <div class="row">
-      <button class="btn-ok" onclick="responder('si')">Aprobar y generar preguntas de entrevista</button>
+    <div class="card-header" role="button" tabindex="0" aria-expanded="true" aria-controls="body-aprobacion" onclick="toggleCard(this)">
+      <span class="icon">✅</span>
+      <h2>Shortlist listo — aprobalo o pedí ajustes</h2>
+      <span class="chevron">▾</span>
     </div>
-    <textarea id="ajustes" rows="2" placeholder="O pedí ajustes: ej. 'ponderar más el inglés', 'descartar los que pidan más de 2.5M'..."
-              style="margin-top:.75rem"></textarea>
-    <div class="row"><button class="btn-no" onclick="responder(null)">Enviar ajustes</button></div>
+    <div class="card-body open" id="body-aprobacion">
+      <div class="inner">
+        <pre id="shortlist"></pre>
+        <div class="row">
+          <button class="btn-ok" onclick="responder('si')">Aprobar y generar preguntas de entrevista</button>
+        </div>
+        <textarea id="ajustes" rows="2" placeholder="O pedí ajustes: ej. 'ponderar más el inglés', 'descartar los que pidan más de 2.5M'..." style="margin-top:.75rem"></textarea>
+        <div class="row"><button class="btn-no" onclick="responder(null)">Enviar ajustes</button></div>
+      </div>
+    </div>
   </div>
 
+  <!-- ================= CANDIDATOS ================= -->
   <div class="card hidden" id="card-candidatos">
-    <h2>Candidatos para revisar</h2>
-    <p class="estado">Revisá el análisis y seleccioná un candidato. La decisión es tuya.</p>
-    <div class="tabla-candidatos" role="region" aria-label="Candidatos para revisar" tabindex="0">
-      <table>
-        <caption>Candidatos cargados</caption>
-        <thead><tr><th scope="col">Candidato</th><th scope="col">Selección</th></tr></thead>
-        <tbody id="filas-candidatos"></tbody>
-      </table>
+    <div class="card-header" role="button" tabindex="0" aria-expanded="true" aria-controls="body-candidatos" onclick="toggleCard(this)">
+      <span class="icon">👥</span>
+      <h2>Candidatos para revisar</h2>
+      <span class="chevron">▾</span>
     </div>
-    <label for="resumen-compartir">Notas para compartir (opcional)</label>
-    <textarea id="resumen-compartir" rows="3"></textarea>
-    <p class="estado">El correo y el calendario incluirán el nombre, el puesto y estas notas; no incluirán los CVs ni el análisis completo. Revisá los datos antes de compartirlos.</p>
-    <div class="row">
-      <button class="btn-mini" onclick="borradorCorreo()">Abrir borrador de correo</button>
-      <button class="btn-mini" onclick="abrirCalendario()">Agendar en Google Calendar</button>
+    <div class="card-body open" id="body-candidatos">
+      <div class="inner">
+        <p class="estado" style="margin-top:0">Revisá el análisis y seleccioná un candidato. La decisión es tuya.</p>
+        <div class="tabla-candidatos" role="region" aria-label="Candidatos para revisar" tabindex="0">
+          <table>
+            <caption>Candidatos cargados</caption>
+            <thead><tr><th scope="col">Candidato</th><th scope="col">Selección</th></tr></thead>
+            <tbody id="filas-candidatos"></tbody>
+          </table>
+        </div>
+        <label for="resumen-compartir">Notas para compartir (opcional)</label>
+        <textarea id="resumen-compartir" rows="3"></textarea>
+        <p class="estado">El correo y el calendario incluirán el nombre, el puesto y estas notas; no incluirán los CVs ni el análisis completo. Revisá los datos antes de compartirlos.</p>
+        <div class="row">
+          <button class="btn-mini" onclick="borradorCorreo()">Abrir borrador de correo</button>
+          <button class="btn-mini" onclick="abrirCalendario()">Agendar en Google Calendar</button>
+        </div>
+        <div class="estado" id="msg-candidato" role="alert"></div>
+      </div>
     </div>
-    <div class="estado" id="msg-candidato" role="alert"></div>
   </div>
 
   <!-- ================= RESULTADO ================= -->
   <div class="card hidden" id="card-final">
-    <span class="badge badge-fin">proceso finalizado</span>
-    <pre id="resultado" style="margin-top:.75rem"></pre>
-    <div class="row"><button class="btn-primario" onclick="location.reload()">Nuevo proceso</button></div>
+    <div class="card-body open">
+      <div class="inner" style="padding-top:1.3rem">
+        <span class="badge badge-fin">proceso finalizado</span>
+        <pre id="resultado" style="margin-top:.75rem"></pre>
+        <div class="row"><button class="btn-primario" onclick="location.reload()">Nuevo proceso</button></div>
+      </div>
+    </div>
   </div>
 </main>
 
 <script>
+/* ---------- Tema ---------- */
+function toggleTheme() {
+  const html = document.documentElement;
+  const body = document.body;
+  const actual = body.getAttribute('data-theme');
+  const nuevo = actual === 'dark' ? 'light' : 'dark';
+  body.setAttribute('data-theme', nuevo);
+  document.getElementById('theme-label').textContent = nuevo === 'dark' ? 'Oscuro' : 'Claro';
+  document.getElementById('knob').textContent = nuevo === 'dark' ? '🌙' : '☀️';
+  try { localStorage.setItem('theme', nuevo); } catch(e) {}
+}
+(function initTheme() {
+  let guardado = null;
+  try { guardado = localStorage.getItem('theme'); } catch(e) {}
+  if (guardado === 'light' || guardado === 'dark') {
+    document.body.setAttribute('data-theme', guardado);
+    document.getElementById('theme-label').textContent = guardado === 'dark' ? 'Oscuro' : 'Claro';
+    document.getElementById('knob').textContent = guardado === 'dark' ? '🌙' : '☀️';
+  }
+})();
+
+/* ---------- Toggles ---------- */
+function toggleCard(header) {
+  const expanded = header.getAttribute('aria-expanded') === 'true';
+  header.setAttribute('aria-expanded', !expanded);
+  const body = header.nextElementSibling;
+  if (body && body.classList.contains('card-body')) body.classList.toggle('open', !expanded);
+}
+function toggleSub(header) {
+  const expanded = header.getAttribute('aria-expanded') === 'true';
+  header.setAttribute('aria-expanded', !expanded);
+  const body = header.nextElementSibling;
+  if (body && body.classList.contains('card-body')) body.classList.toggle('open', !expanded);
+}
+document.querySelectorAll('[role="button"]').forEach(el => {
+  el.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); }
+  });
+});
+
+/* ---------- Lógica original intacta ---------- */
 let pid = null, timer = null;
 
-/* ---------- CVs ---------- */
 function agregarCV(nombre = "", texto = "") {
   const div = document.createElement("div");
   div.className = "cv-item";
@@ -167,13 +648,10 @@ function agregarCV(nombre = "", texto = "") {
 agregarCV("María Pérez", "");
 agregarCV("Juan Gómez", "");
 
-/* archivos: .txt/.md se leen en el navegador; .pdf van al endpoint /cvs/pdf */
 document.getElementById("archivos").addEventListener("change", async (e) => {
   const pdfs = [...e.target.files].filter(f => f.type === "application/pdf");
   const textos = [...e.target.files].filter(f => f.type !== "application/pdf");
-  for (const f of textos) {
-    agregarCV(f.name.replace(/\.(txt|md)$/i, ""), await f.text());
-  }
+  for (const f of textos) agregarCV(f.name.replace(/\.(txt|md)$/i, ""), await f.text());
   if (pdfs.length) {
     document.getElementById("msg-cvs").textContent = "Extrayendo texto de " + pdfs.length + " PDF(s)...";
     const fd = new FormData();
@@ -181,10 +659,7 @@ document.getElementById("archivos").addEventListener("change", async (e) => {
     const r = await fetch("/cvs/pdf", { method: "POST", body: fd });
     const data = await r.json();
     if (!r.ok) { document.getElementById("msg-cvs").textContent = data.detail; }
-    else {
-      data.cvs.forEach(c => agregarCV(c.nombre, c.texto));
-      document.getElementById("msg-cvs").textContent = pdfs.length + " PDF(s) cargado(s) ✓";
-    }
+    else { data.cvs.forEach(c => agregarCV(c.nombre, c.texto)); document.getElementById("msg-cvs").textContent = pdfs.length + " PDF(s) cargado(s) ✓"; }
   }
   e.target.value = "";
 });
@@ -196,7 +671,6 @@ function coleccionarCVs() {
   })).filter(c => c.texto.length > 0);
 }
 
-/* ---------- flujo ---------- */
 async function iniciar() {
   const cvs = coleccionarCVs();
   if (cvs.length === 0) { document.getElementById("msg-inicio").textContent = "Cargá al menos un CV"; return; }
@@ -214,18 +688,13 @@ async function iniciar() {
   };
   let data;
   try {
-    const r = await fetch("/procesos", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const r = await fetch("/procesos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     data = await r.json();
     if (!r.ok) throw new Error(data.detail || "No se pudo iniciar el proceso.");
-  } catch (error) {
-    document.getElementById("msg-inicio").textContent = error.message;
-    return;
-  }
+  } catch (error) { document.getElementById("msg-inicio").textContent = error.message; return; }
   pid = data.pid;
   mostrarCandidatos(cvs);
-  ["card-config", "card-puesto", "card-cvs", "card-inicio"].forEach(id =>
-    document.getElementById(id).classList.add("hidden"));
+  ["card-config", "card-puesto", "card-cvs", "card-inicio"].forEach(id => document.getElementById(id).classList.add("hidden"));
   document.getElementById("card-progreso").classList.remove("hidden");
   timer = setInterval(pollear, 3000);
   pollear();
@@ -237,14 +706,11 @@ function mostrarCandidatos(cvs) {
   cvs.forEach((cv, indice) => {
     const fila = document.createElement("tr");
     const nombre = document.createElement("th");
-    nombre.scope = "row";
-    nombre.textContent = cv.nombre;
+    nombre.scope = "row"; nombre.textContent = cv.nombre;
     const celda = document.createElement("td");
     const etiqueta = document.createElement("label");
     const opcion = document.createElement("input");
-    opcion.type = "radio";
-    opcion.name = "candidato";
-    opcion.value = indice;
+    opcion.type = "radio"; opcion.name = "candidato"; opcion.value = indice;
     etiqueta.append(opcion, document.createTextNode(" Seleccionar " + cv.nombre));
     celda.appendChild(etiqueta);
     fila.append(nombre, celda);
@@ -257,28 +723,22 @@ function mostrarCandidatos(cvs) {
 
 function datosParaCompartir() {
   const seleccion = document.querySelector('input[name="candidato"]:checked');
-  if (!seleccion) {
-    document.getElementById("msg-candidato").textContent = "Seleccioná un candidato primero.";
-    return null;
-  }
+  if (!seleccion) { document.getElementById("msg-candidato").textContent = "Seleccioná un candidato primero."; return null; }
   document.getElementById("msg-candidato").textContent = "";
   const nombre = seleccion.closest("tr").querySelector("th").textContent;
   const puesto = document.getElementById("puesto").value.trim();
   const notas = document.getElementById("resumen-compartir").value.trim();
-  return { nombre, puesto, detalle: `Candidato: ${nombre}\nPuesto: ${puesto}` +
-    (notas ? `\n\nNotas:\n${notas}` : "") };
+  return { nombre, puesto, detalle: `Candidato: ${nombre}\nPuesto: ${puesto}` + (notas ? `\n\nNotas:\n${notas}` : "") };
 }
 
 function borradorCorreo() {
-  const datos = datosParaCompartir();
-  if (!datos) return;
-  const asunto = `Candidato para ${datos.puesto}: ${datos.nombre}`; 
+  const datos = datosParaCompartir(); if (!datos) return;
+  const asunto = `Candidato para ${datos.puesto}: ${datos.nombre}`;
   window.location.href = `mailto:?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(datos.detalle)}`;
 }
 
 function abrirCalendario() {
-  const datos = datosParaCompartir();
-  if (!datos) return;
+  const datos = datosParaCompartir(); if (!datos) return;
   const url = new URL("https://calendar.google.com/calendar/render");
   url.searchParams.set("action", "TEMPLATE");
   url.searchParams.set("text", `Entrevista: ${datos.nombre} - ${datos.puesto}`);
@@ -292,15 +752,10 @@ async function pollear() {
     const r = await fetch("/procesos/" + pid);
     if (!r.ok) throw new Error("No se pudo consultar el proceso. Revisá la conexión con el servidor.");
     s = await r.json();
-  } catch (error) {
-    mostrarError(error.message);
-    return;
-  }
-  document.getElementById("msg-progreso").textContent =
-    `nodo: ${s.nodo_actual || "-"} | mensajes: ${s.total_mensajes}`;
-  if (s.estado === "error") {
-    mostrarError(s.error || "No se pudo completar el proceso.");
-  } else if (s.pendiente_aprobacion) {
+  } catch (error) { mostrarError(error.message); return; }
+  document.getElementById("msg-progreso").textContent = `nodo: ${s.nodo_actual || "-"} | mensajes: ${s.total_mensajes}`;
+  if (s.estado === "error") { mostrarError(s.error || "No se pudo completar el proceso."); }
+  else if (s.pendiente_aprobacion) {
     clearInterval(timer);
     document.getElementById("badge").textContent = "en pausa: esperando tu aprobación";
     document.getElementById("shortlist").textContent = s.shortlist || "";
@@ -332,8 +787,7 @@ function volverAEditar() {
   document.getElementById("msg-error").textContent = "";
   document.getElementById("msg-inicio").textContent = "";
   document.getElementById("badge").textContent = "trabajando...";
-  ["card-config", "card-puesto", "card-cvs", "card-inicio"].forEach(id =>
-    document.getElementById(id).classList.remove("hidden"));
+  ["card-config", "card-puesto", "card-cvs", "card-inicio"].forEach(id => document.getElementById(id).classList.remove("hidden"));
 }
 
 async function responder(rapida) {
@@ -346,14 +800,8 @@ async function responder(rapida) {
     const r = await fetch("/procesos/" + pid + "/respuesta", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ respuesta: texto }) });
-    if (!r.ok) {
-      const data = await r.json();
-      throw new Error(data.detail || "No se pudo enviar la respuesta.");
-    }
-  } catch (error) {
-    mostrarError(error.message);
-    return;
-  }
+    if (!r.ok) { const data = await r.json(); throw new Error(data.detail || "No se pudo enviar la respuesta."); }
+  } catch (error) { mostrarError(error.message); return; }
   timer = setInterval(pollear, 3000);
 }
 </script>
